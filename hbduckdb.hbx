@@ -1,0 +1,48 @@
+/* --------------------------------------------------------------------
+ * NOTE: You can add manual override which functions to include or
+ *       exclude from automatically generated EXTERNAL/DYNAMIC list.
+ *          Syntax: // HB_FUNC_INCLUDE <func>
+ *                  // HB_FUNC_EXCLUDE <func>
+ */
+
+/* --------------------------------------------------------------------
+ * WARNING: Automatically generated code below. DO NOT EDIT! (except casing)
+ *          Regenerate using hbmk2 '-hbx=' option.
+ */
+
+#ifndef __HBEXTERN_CH__HBDUCKDB__
+#define __HBEXTERN_CH__HBDUCKDB__
+
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__ANNOUNCE )
+   ANNOUNCE __HBEXTERN__HBDUCKDB__
+#endif
+
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__REQUEST )
+   #command DYNAMIC <fncs,...> => EXTERNAL <fncs>
+#endif
+
+DYNAMIC DBDUCKDBCLEARCONNECTION
+DYNAMIC DBDUCKDBCOMMIT
+DYNAMIC DBDUCKDBCONNECTION
+DYNAMIC DBDUCKDBGETHANDLE
+DYNAMIC DBDUCKDBROLLBACK
+DYNAMIC DUCKDBCLASS
+DYNAMIC DUCKDBCLOSE
+DYNAMIC DUCKDBCONNECT
+DYNAMIC DUCKDBERROR
+DYNAMIC DUCKDBEXECUTE
+DYNAMIC DUCKDBFETCH
+DYNAMIC DUCKDBFREE
+DYNAMIC DUCKDBGETDATA
+DYNAMIC DUCKDBQUERY
+DYNAMIC DUCKDBRDD
+DYNAMIC DUCKDBRDD_GETFUNCTABLE
+DYNAMIC DUCKDB_SETPK
+DYNAMIC TDUCKDBQUERY
+DYNAMIC TDUCKDBROW
+
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__REQUEST )
+   #uncommand DYNAMIC <fncs,...> => EXTERNAL <fncs>
+#endif
+
+#endif

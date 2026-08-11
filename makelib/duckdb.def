@@ -1,0 +1,16 @@
+LIBRARY duckdb.dll
+EXPORTS
+duckdb_open
+duckdb_open_ext
+duckdb_close
+duckdb_connect
+duckdb_disconnect
+duckdb_query
+duckdb_destroy_result
+duckdb_row_count
+duckdb_column_count
+duckdb_column_name
+duckdb_column_type
+duckdb_value_varchar
+duckdb_result_error
+duckdb_free
