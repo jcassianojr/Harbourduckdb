@@ -45,7 +45,7 @@ FUNCTION DBDUCKDBCONNECTION( cDatabase )
       RETURN 0
    ENDIF
 
-   AAdd( s_aConnections, { db, 3 } ) // 3 mantido apenas por compatibilidade estrutural
+   AAdd( s_aConnections, { db, 3 } )
    RETURN Len( s_aConnections )
    
 FUNCTION DBDUCKDBGETHANDLE( nConn )
@@ -97,130 +97,113 @@ FUNCTION DUCKDB_SETPK( cAlias, cFields )
    ENDIF
    RETURN .F.
 
-// +--------------------------------------------------------------------
-// +    Métodos Internos da RDD
-// +--------------------------------------------------------------------
+STATIC FUNCTION DUCKDB_INIT( nRDD )
+ USRRDD_RDDDATA( nRDD )
+  RETURN SUCCESS
 
-STATIC FUNCTION DUCKDB_INIT( nRDD ); USRRDD_RDDDATA( nRDD ); RETURN SUCCESS
-STATIC FUNCTION DUCKDB_NEW( pWA ); USRRDD_AREADATA( pWA, Array( AREA_LEN ) ); RETURN SUCCESS
+STATIC FUNCTION DUCKDB_NEW( pWA )
+   LOCAL aWAData := Array( AREA_LEN )
+   
+   // INICIALIZAÇÃO BLINDADA: Previne o erro "Called from LEN(0)" no dbAppend()
+   aWAData[ AREA_CONN ]        := NIL
+   aWAData[ AREA_TABLE ]       := ""
+   aWAData[ AREA_PK ]          := {}
+   aWAData[ AREA_CACHE ]       := {}
+   aWAData[ AREA_RECNO ]       := 0
+   aWAData[ AREA_ROWBUF ]      := NIL
+   aWAData[ AREA_APPEND ]      := .F.
+   aWAData[ AREA_EOF ]         := .T.
+   aWAData[ AREA_BOF ]         := .T.
+   aWAData[ AREA_FIELDS ]      := {}
+   aWAData[ AREA_STRUCT ]      := {}
+   aWAData[ AREA_QUERY ]       := NIL
+   aWAData[ AREA_FETCHED_EOF ] := .T.
+   aWAData[ AREA_TYPES ]       := {}
+   
+   USRRDD_AREADATA( pWA, aWAData )
+   RETURN SUCCESS
 
 STATIC FUNCTION DUCKDB_ADDFIELD( nWA, aField )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
    IF aWAData != NIL
-      IF aWAData[ AREA_STRUCT ] == NIL; aWAData[ AREA_STRUCT ] := {}; ENDIF
-      AAdd( aWAData[ AREA_STRUCT ], AClone( aField ) )
+      IF !HB_ISARRAY( aWAData[ AREA_STRUCT ] )
+         aWAData[ AREA_STRUCT ] := {}
+      ENDIF
+      AAdd( aWAData[ AREA_STRUCT ], aField )
    ENDIF
    RETURN UR_SUPER_ADDFIELD( nWA, aField )
 
 STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
-   LOCAL db, qry, oError, qryMeta
-   LOCAL i, nCols, aStru, cTableName, aField
+   LOCAL db, qry, oError
+   LOCAL i, nCols, aStru, aField
    LOCAL cName, nType, nSize, nDec, cType
-   LOCAL aLocalPrecision := {}
-   LOCAL nPosMeta
-   LOCAL cFldName, xPrec, xLen
+   LOCAL cDir, cTableName, cExt
+
+   hb_FNameSplit( aOpenInfo[ UR_OI_NAME ], @cDir, @cTableName, @cExt )
+   cTableName := AllTrim( cTableName )
+   aWAData[ AREA_TABLE ] := cTableName
 
    IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
       db := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ][ 1 ]
    ELSEIF Len( s_aConnections ) > 0
       db := s_aConnections[ Len( s_aConnections ) ][ 1 ]
    ENDIF
+   
+   aWAData[ AREA_CONN ] := { db, 3 }
 
    IF Empty( db )
-      oError := ErrorNew()
-      oError:GenCode := EG_OPEN
-      oError:Description := "Nenhuma conexao DuckDB ativa."
-      UR_SUPER_ERROR( nWA, oError )
-      RETURN FAILURE
+      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Nenhuma conexao DuckDB ativa."
+      UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
    ENDIF
 
-   cTableName := AllTrim( aOpenInfo[ UR_OI_NAME ] )
+   aWAData[ AREA_FIELDS ] := {}
+   aWAData[ AREA_TYPES ]  := {}
 
-   qryMeta := DuckDBQuery( db, "SELECT column_name, numeric_precision, character_maximum_length FROM information_schema.columns WHERE table_name = '" + Lower( cTableName ) + "'" )
+   // Como a tabela ja foi criada previamente, a consulta LIMIT 0 trara a estrutura perfeita
+   qry := DuckDBQuery( db, "SELECT * FROM " + cTableName + " LIMIT 0" )
    
-   IF HB_ISARRAY( qryMeta )
-      WHILE DuckDBFetch( qryMeta ) == 0
-         cFldName := DuckDBGetData( qryMeta, 1 )
-         xPrec    := DuckDBGetData( qryMeta, 2 )
-         xLen     := DuckDBGetData( qryMeta, 3 )
-         
-         cFldName := iif( cFldName == NIL, "", Upper( AllTrim( cFldName ) ) )
-         xPrec    := iif( xPrec == NIL, 0, Val( xPrec ) )
-         xLen     := iif( xLen == NIL, 0, Val( xLen ) )
-         
-         AAdd( aLocalPrecision, { cFldName, xPrec, xLen } )
-      ENDDO
-      DuckDBFree( qryMeta )
+   IF !HB_ISARRAY( qry ) .OR. Len( qry ) < 6
+      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Falha ao ler estrutura da tabela no DuckDB."
+      UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
    ENDIF
 
-   qry := DuckDBQuery( db, "SELECT * FROM " + cTableName )
-   IF HB_ISNUMERIC( qry )
-      oError := ErrorNew()
-      oError:GenCode := EG_OPEN
-      oError:Description := "Falha ao ler estrutura da tabela no DuckDB."
-      UR_SUPER_ERROR( nWA, oError )
-      RETURN FAILURE
-   ENDIF
+   nCols := qry[ 4 ] 
+   aStru := qry[ 6 ] 
 
-   aWAData[ AREA_CONN ]        := { db, 3 }
-   aWAData[ AREA_TABLE ]       := cTableName
-   aWAData[ AREA_PK ]          := {}
-   aWAData[ AREA_RECNO ]       := 0
-   aWAData[ AREA_APPEND ]      := .F.
-   aWAData[ AREA_FIELDS ]      := {}
-   aWAData[ AREA_TYPES ]       := {}
-   aWAData[ AREA_CACHE ]       := {}
-   aWAData[ AREA_QUERY ]       := qry
-   aWAData[ AREA_FETCHED_EOF ] := .F.
-
-   nCols := qry[ 4 ]
-   aStru := qry[ 6 ]
-   
    UR_SUPER_SETFIELDEXTENT( nWA, nCols )
 
    FOR i := 1 TO nCols
       cName := Upper( AllTrim( aStru[ i ][ 1 ] ) )
       nType := aStru[ i ][ 2 ] 
-      nSize := aStru[ i ][ 3 ]
-      nDec  := aStru[ i ][ 4 ] 
-
-      nPosMeta := AScan( aLocalPrecision, {|x| x[1] == cName } )
-      IF nPosMeta > 0
-         IF aLocalPrecision[ nPosMeta, 2 ] > 0 
-            nSize := aLocalPrecision[ nPosMeta, 2 ]
-         ELSEIF aLocalPrecision[ nPosMeta, 3 ] > 0 
-            nSize := aLocalPrecision[ nPosMeta, 3 ]
-         ENDIF
-      ENDIF
+      
+      nSize := iif( aStru[ i ][ 3 ] == NIL, 0, aStru[ i ][ 3 ] )
+      nDec  := iif( aStru[ i ][ 4 ] == NIL, 0, aStru[ i ][ 4 ] )
 
       SWITCH nType
-         CASE "BOOLEAN"
-            cType := HB_FT_LOGICAL; nSize := 1; nDec := 0; EXIT
-         CASE "VARCHAR"
-         CASE "CHAR"
-            cType := HB_FT_STRING; EXIT
-         CASE "INTEGER"
-         CASE "TINYINT"
-            cType := HB_FT_INTEGER; EXIT
-         CASE "BIGINT"
-            cType := HB_FT_LONG; EXIT
-         CASE "DOUBLE"
-         CASE "FLOAT"
-         CASE "DECIMAL"
-            cType := HB_FT_DOUBLE; EXIT
-         CASE "DATE"
-         CASE "TIMESTAMP"
-            cType := HB_FT_DATE; nSize := 8; nDec := 0; EXIT
-         CASE "BLOB"
-            cType := HB_FT_MEMO; nSize := 10; nDec := 0; EXIT
-         OTHERWISE
-            cType := HB_FT_STRING; nDec := 0
+         CASE "BOOLEAN"; cType := HB_FT_LOGICAL; nSize := 1; nDec := 0; EXIT
+         CASE "VARCHAR"; CASE "CHAR"; cType := HB_FT_STRING; EXIT
+         CASE "INTEGER"; CASE "TINYINT"; CASE "SMALLINT"; cType := HB_FT_INTEGER; EXIT
+         CASE "BIGINT"; cType := HB_FT_LONG; EXIT
+         CASE "DOUBLE"; CASE "FLOAT"; CASE "DECIMAL"; CASE "NUMERIC"; cType := HB_FT_DOUBLE; EXIT
+         CASE "DATE"; CASE "TIMESTAMP"; cType := HB_FT_DATE; nSize := 8; nDec := 0; EXIT
+         CASE "BLOB"; cType := HB_FT_MEMO; nSize := 10; nDec := 0; EXIT
+         OTHERWISE; cType := HB_FT_STRING; nDec := 0
       ENDSWITCH
 
       aField := Array( UR_FI_SIZE )
       aField[ UR_FI_NAME ] := cName
       aField[ UR_FI_TYPE ] := cType
+      
+      IF nSize <= 0
+         DO CASE
+            CASE cType == HB_FT_STRING;  nSize := 250
+            CASE cType == HB_FT_DOUBLE;  nSize := 18; nDec := 4
+            CASE cType == HB_FT_INTEGER; nSize := 10
+            CASE cType == HB_FT_LONG;    nSize := 15
+         ENDCASE
+      ENDIF
+      
       aField[ UR_FI_LEN ]  := nSize
       aField[ UR_FI_DEC ]  := nDec
       
@@ -229,20 +212,15 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
       UR_SUPER_ADDFIELD( nWA, aField )
    NEXT
 
-   DUCKDB_FETCH_NEXT( nWA )
+   aWAData[ AREA_FETCHED_EOF ] := .T.
+   aWAData[ AREA_RECNO ]       := 0
+   aWAData[ AREA_BOF ]         := .T.
+   aWAData[ AREA_EOF ]         := .T.
    
-   IF Len( aWAData[ AREA_CACHE ] ) > 0
-      aWAData[ AREA_RECNO ] := 1
-      aWAData[ AREA_BOF ]   := .F.
-      aWAData[ AREA_EOF ]   := .F.
-   ELSE
-      aWAData[ AREA_RECNO ] := 0
-      aWAData[ AREA_BOF ]   := .T.
-      aWAData[ AREA_EOF ]   := .T.
-   ENDIF
-   
-   RETURN UR_SUPER_OPEN( nWA, aOpenInfo )
+   UR_SUPER_OPEN( nWA, aOpenInfo )
+   RETURN SUCCESS
 
+   
 STATIC FUNCTION DUCKDB_FETCH_NEXT( nWA )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
    LOCAL qry := aWAData[ AREA_QUERY ]
@@ -480,7 +458,88 @@ STATIC FUNCTION DUCKDB_ValToSql( xField )
    CASE "L"; RETURN iif( xField, "TRUE", "FALSE" )
    ENDSWITCH
    RETURN "NULL"
+
+
+STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
+   LOCAL aWAData := USRRDD_AREADATA( nWA )
+   LOCAL db, oError, cSql, n
+   LOCAL cDir, cName, cExt, cTableName
+   LOCAL aStruct    := aWAData[ AREA_STRUCT ]
+   LOCAL mFldNm, mFldType, mFldLen, mFldDec
+
+   // Extrai estritamente o nome da tabela (remove caminhos e a extensao .duckdb)
+   hb_FNameSplit( aOpenInfo[ UR_OI_NAME ], @cDir, @cName, @cExt )
+   cTableName := AllTrim( cName )
+
+   IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
+      db := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ][ 1 ]
+   ELSEIF Len( s_aConnections ) > 0
+      db := s_aConnections[ Len( s_aConnections ) ][ 1 ]
+   ENDIF
+
+   IF Empty( db )
+      oError := ErrorNew()
+      oError:GenCode     := EG_OPEN
+      oError:Description := hb_langErrMsg( EG_OPEN ) + ", Nenhuma conexao DuckDB ativa para dbCreate()."
+      oError:FileName    := cTableName
+      UR_SUPER_ERROR( nWA, oError )
+      RETURN FAILURE
+   ENDIF
+
+   cSql := "CREATE TABLE " + cTableName + " ( "
+
+   FOR n := 1 TO Len( aStruct )
+      mFldNm   := aStruct[ n, UR_FI_NAME ]
+      mFldType := aStruct[ n, UR_FI_TYPE ]
+      mFldLen  := aStruct[ n, UR_FI_LEN ]
+      mFldDec  := aStruct[ n, UR_FI_DEC ]
+
+      IF n > 1
+         cSql += ", "
+      ENDIF
+
+      cSql += AllTrim( mFldNm ) + " "
+
+      DO CASE
+         CASE mFldType == HB_FT_AUTOINC .OR. mFldNm == "SR_RECNO"
+            cSql += "INTEGER PRIMARY KEY"
+            
+         CASE mFldType == HB_FT_STRING .OR. mFldType == HB_FT_ANY
+            cSql += "VARCHAR"
+            
+         CASE mFldType == HB_FT_DATE
+            cSql += "DATE"
+            
+         CASE mFldType == HB_FT_DOUBLE .OR. mFldType == HB_FT_INTEGER .OR. mFldType == HB_FT_LONG
+            IF mFldDec > 0
+               cSql += "DECIMAL(" + hb_ntos( mFldLen ) + "," + hb_ntos( mFldDec ) + ")"
+            ELSE
+               IF mFldLen <= 4
+                  cSql += "SMALLINT"
+               ELSEIF mFldLen <= 9
+                  cSql += "INTEGER"
+               ELSE
+                  cSql += "BIGINT"
+               ENDIF
+            ENDIF
+            
+         CASE mFldType == HB_FT_LOGICAL
+            cSql += "BOOLEAN DEFAULT FALSE"
+            
+         CASE mFldType == HB_FT_MEMO .OR. mFldType == HB_FT_BLOB
+            cSql += "BLOB"
+            
+         OTHERWISE
+            cSql += "VARCHAR"
+      ENDCASE
+   NEXT
    
+   cSql += " )"
+
+   DuckDBExecute( db, cSql )
+
+   RETURN SUCCESS
+      
 STATIC FUNCTION DUCKDB_RDDINFO( nIndex, cargo )
    LOCAL xRet := NIL
    DO CASE
@@ -491,6 +550,8 @@ STATIC FUNCTION DUCKDB_RDDINFO( nIndex, cargo )
    ENDCASE
 RETURN xRet
 
+
+
 STATIC FUNCTION DUCKDB_INFO( nWA, nIndex, cargo )
    LOCAL xRet := NIL
    DO CASE
@@ -500,55 +561,6 @@ STATIC FUNCTION DUCKDB_INFO( nWA, nIndex, cargo )
    ENDCASE
 RETURN xRet   
 
-STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
-   LOCAL aWAData := USRRDD_AREADATA( nWA )
-   LOCAL db, cSql, n 
-   LOCAL cTableName := AllTrim( aOpenInfo[ UR_OI_NAME ] ), aStruct := aWAData[ AREA_STRUCT ] 
-   LOCAL mFldNm, mFldType, mFldLen, mFldDec
-
-   IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
-      db := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ][ 1 ]
-   ELSEIF Len( s_aConnections ) > 0
-      db := s_aConnections[ Len( s_aConnections ) ][ 1 ]
-   ENDIF
-
-   cSql := "CREATE TABLE " + cTableName + " ("
-   FOR n := 1 TO Len( aStruct )
-      mFldNm   := aStruct[ n, UR_FI_NAME ]
-      mFldType := aStruct[ n, UR_FI_TYPE ] 
-      mFldLen  := aStruct[ n, UR_FI_LEN ]
-      mFldDec  := aStruct[ n, UR_FI_DEC ]
-
-      IF n > 1; cSql += ", "; ENDIF
-      cSql += AllTrim( mFldNm ) + " "
-
-      DO CASE
-         CASE mFldType == "+" .OR. mFldNm == "SR_RECNO"
-            // O DuckDB suporta sequences/auto_increment, usando um atalho padrão
-            cSql += "INTEGER PRIMARY KEY" 
-         CASE mFldType == HB_FT_STRING .OR. mFldType == "C"
-            cSql += "VARCHAR"
-         CASE mFldType == HB_FT_DATE .OR. mFldType == "D"
-            cSql += "DATE"
-         CASE mFldType == HB_FT_LONG .OR. mFldType == HB_FT_INTEGER .OR. mFldType == "N"
-            IF mFldDec > 0
-               cSql += "DECIMAL(" + LTrim( Str( mFldLen ) ) + "," + LTrim( Str( mFldDec ) ) + ")"
-            ELSE
-               IF mFldLen <= 4; cSql += "SMALLINT"
-               ELSEIF mFldLen <= 9; cSql += "INTEGER"
-               ELSE; cSql += "BIGINT"; ENDIF
-            ENDIF
-         CASE mFldType == HB_FT_LOGICAL .OR. mFldType == "L"
-            cSql += "BOOLEAN DEFAULT FALSE"
-         CASE mFldType == HB_FT_MEMO .OR. mFldType == "M" .OR. mFldType == HB_FT_BLOB .OR. mFldType == "G"
-            cSql += "BLOB"
-         OTHERWISE
-            cSql += "VARCHAR"
-      ENDCASE
-   NEXT
-   cSql += ")"
-   DuckDBExecute( db, cSql )
-   RETURN SUCCESS
 
 FUNCTION DUCKDBRDD_GETFUNCTABLE( pFuncCount, pFuncTable, pSuperTable, nRddID )
    LOCAL cSuperRDD := NIL
