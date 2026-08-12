@@ -6,7 +6,7 @@ rem gendef duckdb.dll
 rem entrou em loop usando def basica manual
 
 rem Crie a .a:
-dlltool -d duckdb.def -l libduckdb.dll.a -k
+dlltool -d duckdb.def -l libduckdb.a -k
 
 rem link simbolico
 rem ln -s libduckdb.dll.a libduckdb.a
