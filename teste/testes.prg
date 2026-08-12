@@ -26,8 +26,8 @@ PROCEDURE TesteClasse()
    
    ? ">>> TESTE 1: DuckDBClass (Via Comandos SQL) <<<"
    
-   // 1. Criacao do Banco (Em memoria)
-   oDB := DuckDBClass():New( "" ) 
+   // 1. Criacao do Banco (Em memoria) oDB := DuckDBClass():New( "" ) 
+   oDB := DuckDBClass():New( "teste1.db" ) 
    IF oDB:NetErr()
       ? "Erro ao conectar:", oDB:Error()
       RETURN
@@ -75,8 +75,8 @@ PROCEDURE TesteRDD()
    
    ? ">>> TESTE 2: DuckDBRDD (Via Comandos Harbour/xBase) <<<"
    
-   // 1. Criacao do Banco (Em memoria)
-   nConn := DBDUCKDBCONNECTION( "" )
+   // 1. Criacao do Banco (Em memoria)  nConn := DBDUCKDBCONNECTION( "" )
+   nConn := DBDUCKDBCONNECTION( "teste2.db" )
    IF nConn == 0
       ? "Erro ao iniciar conexao no RDD."
       RETURN
