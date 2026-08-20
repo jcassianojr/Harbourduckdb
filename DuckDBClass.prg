@@ -168,12 +168,20 @@ METHOD TableExists( cTable ) CLASS DuckDBClass
 
    RETURN result
 
-METHOD ListTables() CLASS DuckDBClass
+   
+METHOD ListTables( cSchema ) CLASS DuckDBClass
    LOCAL result := {}
    LOCAL cQuery
    LOCAL qry
 
-   cQuery := "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name"
+   // Se não passar nada, assume o padrão 'main' do DuckDB
+   IF Empty( cSchema )
+      cSchema := "main"
+   ENDIF
+
+   // Filtra as tabelas pelo schema correto
+   cQuery := "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + Lower(AllTrim( cSchema )) + "' ORDER BY table_name"
+   
    qry := DuckDBQuery( ::db, RemoveSpaces( cQuery ) )
 
    IF HB_ISARRAY( qry )
@@ -183,7 +191,7 @@ METHOD ListTables() CLASS DuckDBClass
       DuckDBFree( qry )
    ENDIF
 
-   RETURN result
+   RETURN result   
 
 METHOD TableStruct( cTable ) CLASS DuckDBClass
    LOCAL result := {}
