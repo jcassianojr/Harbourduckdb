@@ -54,5 +54,8 @@
 #define DIALETO_MYSQL     100
 #define DIALETO_POSTGRES  101
 #define DIALETO_ODBC      102
+#define DIALETO_ODBC_MDB       103  // <- NOVO
+#define DIALETO_ODBC_ACCDB     104  // <- NOVO
+#define DIALETO_ODBC_FIREBIRD  105  // <- NOVO
 
 #endif /* DUCKDB_CH */
