@@ -10,6 +10,8 @@
 #include "error.ch"
 #include "dbstruct.ch"
 #include "dbinfo.ch"   
+#include "duckdb.ch"
+
 
 #define AREA_CONN         1
 #define AREA_TABLE        2

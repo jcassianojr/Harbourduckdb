@@ -38,4 +38,21 @@
 /* Modos de transação e comportamento */
 #define DUCKDB_DIALECT_CURRENT   3
 
+/* -------------------------------------------------------------------- */
+/* DIALETOS E FORMATOS DE ARQUIVOS SUPORTADOS PELA DUCKDBCLASS          */
+/* -------------------------------------------------------------------- */
+
+// Dialetos baseados em arquivo
+#define DIALETO_DUCKDB    1
+#define DIALETO_DUCKLAKE  2
+#define DIALETO_SQLITE    3
+#define DIALETO_CSV       4
+#define DIALETO_JSON      5
+#define DIALETO_PARQUET   6
+
+// Dialetos de SGBDs / Conexões de Rede (iniciando em 100)
+#define DIALETO_MYSQL     100
+#define DIALETO_POSTGRES  101
+#define DIALETO_ODBC      102
+
 #endif /* DUCKDB_CH */

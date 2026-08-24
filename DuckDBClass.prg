@@ -4,20 +4,8 @@
  */
 
 #include "hbclass.ch"
+#include "duckdb.ch"
 
-/* Macros de tipos mapeados para o padrão Harbour/DuckDB */
-#define DUCKDB_TYPE_BOOLEAN      1
-#define DUCKDB_TYPE_TINYINT      2
-#define DUCKDB_TYPE_SMALLINT     3
-#define DUCKDB_TYPE_INTEGER      4
-#define DUCKDB_TYPE_BIGINT       5
-#define DUCKDB_TYPE_FLOAT        6
-#define DUCKDB_TYPE_DOUBLE       7
-#define DUCKDB_TYPE_VARCHAR      8
-#define DUCKDB_TYPE_BLOB         9
-#define DUCKDB_TYPE_DATE         10
-#define DUCKDB_TYPE_TIME         11
-#define DUCKDB_TYPE_TIMESTAMP    12
 
 CREATE CLASS DuckDBClass
 
@@ -29,12 +17,14 @@ CREATE CLASS DuckDBClass
    VAR dialect
    VAR charset
 
-   METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet )
+   METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias ) // <-- Adicionado cAlias aqui também
+   METHOD TratarDialeto( cDatabase, nDialect, cAlias )                   // <-- NOVA DECLARAÇÃO AQUI
+   
    METHOD Destroy()  INLINE DuckDBClose( ::db )
    METHOD Close()    INLINE DuckDBClose( ::db )
 
    METHOD TableExists( cTable )
-   METHOD ListTables()
+   METHOD ListTables( cSchema )
    METHOD TableStruct( cTable )
 
    METHOD StartTransaction()
@@ -55,29 +45,131 @@ CREATE CLASS DuckDBClass
 
 ENDCLASS
 
-METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet ) CLASS DuckDBClass
+
+METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias ) CLASS DuckDBClass
+   LOCAL cDir, cName, cExt
+
    hb_default( @cDatabase, "" )
-   hb_default( @nDialect, 3 ) 
    hb_default( @cCharSet, "UTF8" )
 
    HB_SYMBOL_UNUSED( cUser )
    HB_SYMBOL_UNUSED( cPassword )
 
+   // 1. Extrai informações do arquivo para autodetecção e geração de alias
+   IF !Empty( cDatabase )
+      hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
+      cExt := Lower( cExt )
+   ELSE
+      cName := "memoria"
+      cExt  := ""
+   ENDIF
+
+   // Se o usuário não informou o alias, assume o nome do arquivo
+   IF Empty( cAlias )
+      cAlias := cName 
+   ENDIF
+
+   // 2. Autodetecção do Dialeto caso não seja informado
+   IF Empty( nDialect )
+      DO CASE
+         CASE Empty( cDatabase ) .OR. cExt == ".duckdb"
+            nDialect := DIALETO_DUCKDB
+         CASE cExt == ".ducklake"
+            nDialect := DIALETO_DUCKLAKE
+         CASE cExt == ".sqlite" .OR. cExt == ".db"
+            nDialect := DIALETO_SQLITE
+         CASE cExt == ".csv"
+            nDialect := DIALETO_CSV
+         CASE cExt == ".json"
+            nDialect := DIALETO_JSON
+         CASE cExt == ".parquet"
+            nDialect := DIALETO_PARQUET
+         OTHERWISE
+            nDialect := DIALETO_DUCKDB 
+      ENDCASE
+   ENDIF
+
+   ::Dialect := nDialect
    ::lError := .F.
    ::nError := 0
    ::StartedTrans := .F.
-   ::Dialect := nDialect
    ::charset := cCharSet
 
-   // Se cDatabase for passado (ex: "dados.duckdb"), abre o arquivo físico em disco. Se vazio, abre em memória.
-   ::db := DuckDBConnect( cDatabase )
+   // 3. Regra do Hospedeiro (Sem usar variável intermediária):
+   // Se for DUCKDB, conecta direto no arquivo. Senão, conecta em memória ("").
+   IF nDialect == DIALETO_DUCKDB
+      ::db := DuckDBConnect( cDatabase )
+   ELSE
+      ::db := DuckDBConnect( "" )
+   ENDIF
 
    IF HB_ISNUMERIC( ::db )
       ::lError := .T.
       ::nError := ::db
+      RETURN Self
+   ENDIF
+
+   // 4. Se NÃO for DuckDB nativo, invoca a rotina de dialetos
+   IF nDialect != DIALETO_DUCKDB .AND. !Empty( cDatabase )
+      ::TratarDialeto( cDatabase, nDialect, cAlias )
    ENDIF
 
    RETURN Self
+
+METHOD TratarDialeto( cDatabase, nDialect, cAlias ) CLASS DuckDBClass
+   LOCAL cSql := ""
+
+   DO CASE
+      // =========================================================
+      // BANCOS DE DADOS ANEXÁVEIS (ATTACH)
+      // =========================================================
+      CASE nDialect == DIALETO_SQLITE
+         // Requer carga da extensão sqlite
+         ::Execute( "INSTALL sqlite; LOAD sqlite;" )
+         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE sqlite);"
+         
+      CASE nDialect == DIALETO_DUCKLAKE
+         // Requer carga da extensão ducklake
+         ::Execute( "INSTALL ducklake; LOAD ducklake;" )
+         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
+
+      // =========================================================
+      // ARQUIVOS TABULARES (Criação de VIEWs para simular alias)
+      // =========================================================
+      CASE nDialect == DIALETO_CSV
+         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_csv('" + cDatabase + "', auto_detect=true);"
+         
+      CASE nDialect == DIALETO_JSON
+         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_json('" + cDatabase + "', auto_detect=true);"
+         
+      CASE nDialect == DIALETO_PARQUET
+         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_parquet('" + cDatabase + "');"
+
+      // =========================================================
+      // SGBDs (DBMS) - Espaço reservado a partir de 100
+      // =========================================================
+      CASE nDialect == DIALETO_MYSQL
+         // ::Execute( "INSTALL mysql; LOAD mysql;" )
+         // cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
+         
+      CASE nDialect == DIALETO_POSTGRES
+         // ::Execute( "INSTALL postgres; LOAD postgres;" )
+         // cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
+         
+      CASE nDialect == DIALETO_ODBC
+         // Implementação futura ODBC
+         
+   ENDCASE
+
+   // Executa a instrução correspondente ao dialeto
+   IF !Empty( cSql )
+      IF !::Execute( cSql )
+         // lError e nError já serão preenchidos internamente pelo método ::Execute
+         // Opcional: Você pode colocar um Alert() ou Log aqui caso queira visibilidade imediata
+      ENDIF
+   ENDIF
+   
+RETURN .T.
 
 METHOD StartTransaction() CLASS DuckDBClass
    LOCAL result := .F.
