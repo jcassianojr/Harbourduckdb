@@ -17,6 +17,7 @@ CREATE CLASS DuckDBClass
    VAR lError
    VAR dialect
    VAR charset
+   VAR cAlias    // <- ADICIONADO: Propriedade para armazenar o alias da conexao
 
   // Adicione cConnStr no final das declarações
    METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr )
@@ -49,7 +50,7 @@ ENDCLASS
 
 METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cDir, cName, cExt
-  // LOCAL oErr
+   //LOCAL oErr
 
    hb_default( @cDatabase, "" )
    hb_default( @cCharSet, "UTF8" )
@@ -57,19 +58,18 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
    HB_SYMBOL_UNUSED( cUser )
    HB_SYMBOL_UNUSED( cPassword )
 
-   // 1. Extrai informacoes do arquivo para autodeteccao e geracao de alias
-   IF !Empty( cDatabase )
-      hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
-      cExt := Lower( cExt )
-   ELSE
-      cName := "memoria"
-      cExt  := ""
+   // Se o usuario nao informou o alias, a classe assume e formata o nome limpo
+   IF Empty( cAlias )
+      IF !Empty( cDatabase )
+         hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
+         cAlias := Lower( StrTran( cName, " ", "_" ) )
+      ELSE
+         cAlias := "memoria"
+      ENDIF
    ENDIF
 
-   // Se o usuario nao informou o alias, assume o nome do arquivo
-   IF Empty( cAlias )
-      cAlias := cName 
-   ENDIF
+   ::cAlias := cAlias  // <- Salva na propriedade da classe
+   
 
    // 2. Autodeteccao do Dialeto caso nao seja informado
    IF Empty( nDialect )
