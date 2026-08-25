@@ -37,18 +37,78 @@ STATIC s_aConnections := {}
 // +    Funções de Gerenciamento de Conexão e Transação 
 // +--------------------------------------------------------------------
 
-FUNCTION DBDUCKDBCONNECTION( cDatabase )
+// +--------------------------------------------------------------------
+// +    Funcoes de Gerenciamento de Conexao e Transacao 
+// +--------------------------------------------------------------------
+
+FUNCTION DBDUCKDBCONNECTION( cDatabase, nDialect, cAlias, cConnStr )
    LOCAL db
    
-   db := DuckDBConnect( cDatabase )
+   // Valores padrao para garantir compatibilidade com chamadas antigas
+   IF nDialect == NIL; nDialect := 0; ENDIF
+   IF cAlias == NIL; cAlias := "db_conn"; ENDIF
+   IF cConnStr == NIL; cConnStr := ""; ENDIF
+
+   // Se for um SGBD externo, conectamos em memoria para ser o hospedeiro
+   IF nDialect > 0
+      db := DuckDBConnect( ":memory:" )
+   ELSE
+      db := DuckDBConnect( cDatabase )
+   ENDIF
    
    IF HB_ISNUMERIC( db )
-      Alert( "Erro ao conectar DuckDB via RDD (Cód): " + hb_ntos( db ) )
+      Alert( "Erro ao conectar DuckDB via RDD (Cod): " + hb_ntos( db ) )
       RETURN 0
    ENDIF
 
-   AAdd( s_aConnections, { db, 3 } )
+   // Aciona o tratamento de dialeto e carrega as extensoes
+   IF nDialect > 0
+      IF !TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
+         DuckDBClose( db )
+         RETURN 0
+      ENDIF
+   ENDIF
+
+   // Modificacao: Agora guardamos o nDialect e cAlias no array da conexao
+   AAdd( s_aConnections, { db, nDialect, cAlias, cConnStr } )
    RETURN Len( s_aConnections )
+
+STATIC FUNCTION TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
+   LOCAL cSql := ""
+
+   DO CASE
+      // =========================================================
+      // SGBDs NATIVOS (DBMS via ATTACH)
+      // =========================================================
+      CASE nDialect == 100 // DIALETO_MYSQL (ou MariaDB)
+         DuckDBExecute( db, "INSTALL mysql; LOAD mysql;" )
+         IF !Empty( cConnStr )
+            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE mysql);"
+         ELSE
+            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
+         ENDIF
+         
+      CASE nDialect == 101 // DIALETO_POSTGRES
+         DuckDBExecute( db, "INSTALL postgres; LOAD postgres;" )
+         IF !Empty( cConnStr )
+            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE postgres);"
+         ELSE
+            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
+         ENDIF
+         
+      // =========================================================
+      // SGBDs VIA ODBC SCANNER 
+      // =========================================================
+      CASE nDialect >= 102 .AND. nDialect <= 108
+         DuckDBExecute( db, "INSTALL odbc; LOAD odbc;" )
+         cSql := "SET VARIABLE " + cAlias + " = odbc_connect('" + cConnStr + "');"
+   ENDCASE
+
+   IF !Empty( cSql )
+      DuckDBExecute( db, cSql )
+   ENDIF
+
+   RETURN .T.
    
 FUNCTION DBDUCKDBGETHANDLE( nConn )
    IF nConn > 0 .AND. nConn <= Len( s_aConnections )
@@ -140,30 +200,47 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    LOCAL db, qry, oError
    LOCAL i, nCols, aStru, aField
    LOCAL cName, nType, nSize, nDec, cType
-   LOCAL cDir, cTableName, cExt
+   LOCAL cDir, cTableName, cExt, cTableRef
+   LOCAL nDialect, cAlias
 
    hb_FNameSplit( aOpenInfo[ UR_OI_NAME ], @cDir, @cTableName, @cExt )
    cTableName := AllTrim( cTableName )
-   aWAData[ AREA_TABLE ] := cTableName
 
    IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
-      db := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ][ 1 ]
+      // Modificado para recuperar o array inteiro da conexao selecionada
+      aWAData[ AREA_CONN ] := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ]
    ELSEIF Len( s_aConnections ) > 0
-      db := s_aConnections[ Len( s_aConnections ) ][ 1 ]
+      aWAData[ AREA_CONN ] := s_aConnections[ Len( s_aConnections ) ]
    ENDIF
    
-   aWAData[ AREA_CONN ] := { db, 3 }
+   db       := aWAData[ AREA_CONN ][ 1 ]
+   nDialect := aWAData[ AREA_CONN ][ 2 ] // Resgata o Dialeto salvo
+   cAlias   := aWAData[ AREA_CONN ][ 3 ] // Resgata o Alias do ATTACH
 
    IF Empty( db )
       oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Nenhuma conexao DuckDB ativa."
       UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
    ENDIF
 
+   // Resolve o nome correto da tabela baseado no dialeto utilizado
+   IF nDialect >= 102 .AND. nDialect <= 108
+      cTableRef := "odbc_scan(GETVARIABLE('" + cAlias + "'), '" + cTableName + "')"
+   ELSEIF nDialect > 0
+      cTableRef := cAlias + "." + cTableName
+   ELSE
+      cTableRef := cTableName
+   ENDIF
+
+   // Salva a referencia final no aWAData. Isso fara com que DUCKDB_FLUSH e DELETE funcionem sozinhos
+   aWAData[ AREA_TABLE ] := cTableRef
+
    aWAData[ AREA_FIELDS ] := {}
    aWAData[ AREA_TYPES ]  := {}
 
-   // Como a tabela ja foi criada previamente, a consulta LIMIT 0 trara a estrutura perfeita
-   qry := DuckDBQuery( db, "SELECT * FROM " + cTableName + " LIMIT 0" )
+   // Usa o cTableRef para ler a estrutura corretamente
+   qry := DuckDBQuery( db, "SELECT * FROM " + cTableRef + " LIMIT 0" )
+   
+   // ... [MANTENHA O RESTANTE DA DUCKDB_OPEN INALTERADO] ...
    
    IF !HB_ISARRAY( qry ) .OR. Len( qry ) < 6
       oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Falha ao ler estrutura da tabela no DuckDB."
