@@ -49,7 +49,7 @@ ENDCLASS
 
 METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cDir, cName, cExt
-  // LOCAL oErr
+//   LOCAL oErr
 
    hb_default( @cDatabase, "" )
    hb_default( @cCharSet, "UTF8" )
@@ -147,6 +147,22 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
          // Requer carga da extensao ducklake
          ::Execute( "INSTALL ducklake; LOAD ducklake;" )
          cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
+         
+     CASE nDialect == DIALETO_MYSQL
+         ::Execute( "INSTALL mysql; LOAD mysql;" )
+         IF !Empty( cConnStr )
+            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE mysql);"
+         ELSE
+            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
+         ENDIF
+      CASE nDialect == DIALETO_POSTGRES
+         ::Execute( "INSTALL postgres; LOAD postgres;" )
+         IF !Empty( cConnStr )
+            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE postgres);"
+         ELSE
+            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
+         ENDIF
+
 
       // =========================================================
       // ARQUIVOS TABULARES (Criacao de VIEWs para simular alias)
@@ -171,15 +187,19 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
          ::Execute( "INSTALL postgres; LOAD postgres;" )
          cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
          
+
+
       // =========================================================
       // SGBDs VIA ODBC SCANNER (Access, Firebird, etc.)
       // =========================================================
       CASE nDialect == DIALETO_ODBC .OR. ;
            nDialect == DIALETO_ODBC_MDB .OR. ;
            nDialect == DIALETO_ODBC_ACCDB .OR. ;
-           nDialect == DIALETO_ODBC_FIREBIRD
+           nDialect == DIALETO_ODBC_FIREBIRD .OR. ;
+           nDialect == DIALETO_ODBC_MSSQL .OR. ;
+           nDialect == DIALETO_ODBC_ORACLE .OR. ;
+           nDialect == DIALETO_ODBC_DSN
            
-         // 1. Instala e carrega a extensao ODBC oficial do DuckDB
          ::Execute( "INSTALL odbc; LOAD odbc;" )
          
          // 3. Cria a conexao persistente no DuckDB

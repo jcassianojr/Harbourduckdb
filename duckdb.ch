@@ -57,5 +57,8 @@
 #define DIALETO_ODBC_MDB       103  // <- NOVO
 #define DIALETO_ODBC_ACCDB     104  // <- NOVO
 #define DIALETO_ODBC_FIREBIRD  105  // <- NOVO
+#define DIALETO_ODBC_MSSQL     106  // <- NOVO
+#define DIALETO_ODBC_ORACLE    107  // <- NOVO
+#define DIALETO_ODBC_DSN       108  // <- NOVO
 
 #endif /* DUCKDB_CH */
