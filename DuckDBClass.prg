@@ -49,7 +49,7 @@ ENDCLASS
 
 METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cDir, cName, cExt
-//   LOCAL oErr
+  // LOCAL oErr
 
    hb_default( @cDatabase, "" )
    hb_default( @cCharSet, "UTF8" )
@@ -128,7 +128,7 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
    RETURN Self
    
  
- METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr ) CLASS DuckDBClass
+METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cSql := ""
 
    // Garante que a variavel nao seja NIL se for omitida na chamada
@@ -139,22 +139,24 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
       // BANCOS DE DADOS ANEXAVEIS (ATTACH)
       // =========================================================
       CASE nDialect == DIALETO_SQLITE
-         // Requer carga da extensao sqlite
          ::Execute( "INSTALL sqlite; LOAD sqlite;" )
          cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE sqlite);"
          
       CASE nDialect == DIALETO_DUCKLAKE
-         // Requer carga da extensao ducklake
          ::Execute( "INSTALL ducklake; LOAD ducklake;" )
          cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
          
-     CASE nDialect == DIALETO_MYSQL
+      // =========================================================
+      // SGBDs NATIVOS (DBMS)
+      // =========================================================
+      CASE nDialect == DIALETO_MYSQL
          ::Execute( "INSTALL mysql; LOAD mysql;" )
          IF !Empty( cConnStr )
             cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE mysql);"
          ELSE
             cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
          ENDIF
+         
       CASE nDialect == DIALETO_POSTGRES
          ::Execute( "INSTALL postgres; LOAD postgres;" )
          IF !Empty( cConnStr )
@@ -162,7 +164,6 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
          ELSE
             cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
          ENDIF
-
 
       // =========================================================
       // ARQUIVOS TABULARES (Criacao de VIEWs para simular alias)
@@ -177,20 +178,7 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
          cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_parquet('" + cDatabase + "');"
 
       // =========================================================
-      // SGBDs NATIVOS (DBMS)
-      // =========================================================
-      CASE nDialect == DIALETO_MYSQL
-         ::Execute( "INSTALL mysql; LOAD mysql;" )
-         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
-         
-      CASE nDialect == DIALETO_POSTGRES
-         ::Execute( "INSTALL postgres; LOAD postgres;" )
-         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
-         
-
-
-      // =========================================================
-      // SGBDs VIA ODBC SCANNER (Access, Firebird, etc.)
+      // SGBDs VIA ODBC SCANNER 
       // =========================================================
       CASE nDialect == DIALETO_ODBC .OR. ;
            nDialect == DIALETO_ODBC_MDB .OR. ;
@@ -201,21 +189,17 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
            nDialect == DIALETO_ODBC_DSN
            
          ::Execute( "INSTALL odbc; LOAD odbc;" )
-         
-         // 3. Cria a conexao persistente no DuckDB
          cSql := "SET VARIABLE " + cAlias + " = odbc_connect('" + cConnStr + "');"
          
    ENDCASE
 
-   // Executa a instrucao correspondente ao dialeto
    IF !Empty( cSql )
       IF !::Execute( cSql )
          // lError e nError ja serao preenchidos internamente pelo metodo ::Execute
       ENDIF
    ENDIF
    
-RETURN .T.  
-
+RETURN .T.
 
 METHOD StartTransaction() CLASS DuckDBClass
    LOCAL result := .F.

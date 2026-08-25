@@ -34,23 +34,54 @@ ANNOUNCE DUCKDBRDD
 STATIC s_aConnections := {}
 
 // +--------------------------------------------------------------------
-// +    Funções de Gerenciamento de Conexão e Transação 
-// +--------------------------------------------------------------------
-
-// +--------------------------------------------------------------------
 // +    Funcoes de Gerenciamento de Conexao e Transacao 
 // +--------------------------------------------------------------------
 
 FUNCTION DBDUCKDBCONNECTION( cDatabase, nDialect, cAlias, cConnStr )
-   LOCAL db
+   LOCAL db, cDir, cName, cExt
    
-   // Valores padrao para garantir compatibilidade com chamadas antigas
-   IF nDialect == NIL; nDialect := 0; ENDIF
+   // Valores padrao para garantir compatibilidade
    IF cAlias == NIL; cAlias := "db_conn"; ENDIF
    IF cConnStr == NIL; cConnStr := ""; ENDIF
 
-   // Se for um SGBD externo, conectamos em memoria para ser o hospedeiro
-   IF nDialect > 0
+   // 1. Auto-deteccao do dialeto pela extensao do arquivo se nDialect nao for informado
+   IF nDialect == NIL .OR. nDialect == 0
+      hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
+      cExt := Lower( cExt )
+      
+      DO CASE
+         CASE cExt == ".duckdb" .OR. cExt == ".db"
+            nDialect := 1   // DIALETO_DUCKDB
+            
+         CASE cExt == ".sqlite" .OR. cExt == ".sqlite3"
+            nDialect := 3   // DIALETO_SQLITE
+            
+         CASE cExt == ".csv"
+            nDialect := 4   // DIALETO_CSV
+            
+         CASE cExt == ".json"
+            nDialect := 5   // DIALETO_JSON
+            
+         CASE cExt == ".parquet"
+            nDialect := 6   // DIALETO_PARQUET
+            
+         CASE cExt == ".mdb"
+            nDialect := 103 // DIALETO_ODBC_MDB
+            
+         CASE cExt == ".accdb"
+            nDialect := 104 // DIALETO_ODBC_ACCDB
+            
+         CASE cExt == ".gdb" .OR. cExt == ".fdb"
+            nDialect := 105 // DIALETO_ODBC_FIREBIRD
+            
+         OTHERWISE
+            nDialect := 0   // Mantem 0 (Conexao Nativa Direta)
+      ENDCASE
+   ENDIF
+
+   // 2. Definicao do Hospedeiro (Memory para SGBDs/Arquivos anexos)
+   // Se for nativo (0) ou DuckDB explicitamente (1), conecta no arquivo.
+   IF nDialect > 1
       db := DuckDBConnect( ":memory:" )
    ELSE
       db := DuckDBConnect( cDatabase )
@@ -61,15 +92,15 @@ FUNCTION DBDUCKDBCONNECTION( cDatabase, nDialect, cAlias, cConnStr )
       RETURN 0
    ENDIF
 
-   // Aciona o tratamento de dialeto e carrega as extensoes
-   IF nDialect > 0
+   // 3. Aciona o tratamento de dialeto e carrega as extensoes (Apenas > 1)
+   IF nDialect > 1
       IF !TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
          DuckDBClose( db )
          RETURN 0
       ENDIF
    ENDIF
 
-   // Modificacao: Agora guardamos o nDialect e cAlias no array da conexao
+   // 4. Guarda o contexto completo no array estatico
    AAdd( s_aConnections, { db, nDialect, cAlias, cConnStr } )
    RETURN Len( s_aConnections )
 
@@ -77,6 +108,17 @@ STATIC FUNCTION TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
    LOCAL cSql := ""
 
    DO CASE
+      // =========================================================
+      // BANCOS DE DADOS EM ARQUIVO (VIA ATTACH)
+      // =========================================================
+      CASE nDialect == 2 // DIALETO_DUCKLAKE
+         DuckDBExecute( db, "INSTALL ducklake; LOAD ducklake;" )
+         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
+         
+      CASE nDialect == 3 // DIALETO_SQLITE
+         DuckDBExecute( db, "INSTALL sqlite; LOAD sqlite;" )
+         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE sqlite);"
+         
       // =========================================================
       // SGBDs NATIVOS (DBMS via ATTACH)
       // =========================================================
@@ -222,14 +264,29 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
       UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
    ENDIF
 
-   // Resolve o nome correto da tabela baseado no dialeto utilizado
-   IF nDialect >= 102 .AND. nDialect <= 108
-      cTableRef := "odbc_scan(GETVARIABLE('" + cAlias + "'), '" + cTableName + "')"
-   ELSEIF nDialect > 0
-      cTableRef := cAlias + "." + cTableName
-   ELSE
-      cTableRef := cTableName
-   ENDIF
+// Resolve o nome correto da tabela baseado no dialeto utilizado
+   DO CASE
+      CASE nDialect == 4 // DIALETO_CSV
+         cTableRef := "read_csv_auto('" + aOpenInfo[ UR_OI_NAME ] + "')"
+         
+      CASE nDialect == 5 // DIALETO_JSON
+         cTableRef := "read_json_auto('" + aOpenInfo[ UR_OI_NAME ] + "')"
+         
+      CASE nDialect == 6 // DIALETO_PARQUET
+         cTableRef := "read_parquet('" + aOpenInfo[ UR_OI_NAME ] + "')"
+         
+      CASE nDialect >= 102 .AND. nDialect <= 108 // SGBDs via ODBC Scanner
+         cTableRef := "odbc_scan(GETVARIABLE('" + cAlias + "'), '" + cTableName + "')"
+         
+      CASE ( nDialect >= 2 .AND. nDialect <= 3 ) .OR. ( nDialect == 100 .OR. nDialect == 101 )
+         // DuckLake, SQLite, MySQL e Postgres possuem ATTACH, acessamos pelo prefixo
+         cTableRef := cAlias + "." + cTableName
+         
+      OTHERWISE // Padrao (0) ou DuckDB Nativo (1) - Nao precisa de alias
+         cTableRef := cTableName
+   ENDCASE
+
+
 
    // Salva a referencia final no aWAData. Isso fara com que DUCKDB_FLUSH e DELETE funcionem sozinhos
    aWAData[ AREA_TABLE ] := cTableRef
