@@ -48,7 +48,8 @@ static HB_GARBAGE_FUNC( HB_DUCKDB_release )
       }
       if( p->last_error )
       {
-         duckdb_free( p->last_error );
+         /* CORRIGIDO: Utiliza hb_xfree para liberar strings alocadas via hb_strdup/hb_xgrab */
+         hb_xfree( p->last_error );
          p->last_error = NULL;
       }
 
@@ -77,6 +78,8 @@ HB_FUNC( DUCKDBCONNECT )
    duckdb_database db;
    duckdb_connection conn;
    char * err_msg = NULL;
+   HB_DUCKDB * p;
+   HB_DUCKDB ** pp;
 
    // Se o caminho for vazio ou omitido, abre banco em memória
    if( hb_parclen( 1 ) == 0 )
@@ -84,25 +87,32 @@ HB_FUNC( DUCKDBCONNECT )
 
    if( duckdb_open_ext( db_path, &db, NULL, &err_msg ) == DuckDBError )
    {
+      /* CORRIGIDO: Preserva a mensagem de erro real retornada pela API do DuckDB se houver */
       if( err_msg )
+      {
+         hb_retc( err_msg );
          duckdb_free( err_msg );
-      hb_retnl( -1 );
+      }
+      else
+      {
+         hb_retc( "Erro desconhecido ao abrir banco DuckDB." );
+      }
       return;
    }
 
    if( duckdb_connect( db, &conn ) == DuckDBError )
    {
       duckdb_close( &db );
-      hb_retnl( -2 );
+      hb_retc( "Erro ao estabelecer conexao com o banco DuckDB." );
       return;
    }
 
-   HB_DUCKDB * p = ( HB_DUCKDB * ) hb_xgrab( sizeof( HB_DUCKDB ) );
+   p = ( HB_DUCKDB * ) hb_xgrab( sizeof( HB_DUCKDB ) );
    p->db = db;
    p->conn = conn;
    p->last_error = NULL;
 
-   HB_DUCKDB ** pp = ( HB_DUCKDB ** ) hb_gcAllocate( sizeof( HB_DUCKDB * ), &s_gcHB_DUCKDBFuncs );
+   pp = ( HB_DUCKDB ** ) hb_gcAllocate( sizeof( HB_DUCKDB * ), &s_gcHB_DUCKDBFuncs );
    *pp = p;
 
    hb_retptrGC( pp );
@@ -158,10 +168,17 @@ HB_FUNC( DUCKDBEXECUTE )
       if( duckdb_query( p->conn, sql, &res ) == DuckDBError )
       {
          if( p->last_error )
-            duckdb_free( p->last_error );
+         {
+            hb_xfree( p->last_error );
+            p->last_error = NULL;
+         }
 
          const char * err = duckdb_result_error( &res );
-         p->last_error = err ? hb_strdup( err ) : NULL;
+         if( err )
+         {
+            /* CORRIGIDO: Alocação padronizada com hb_strdup para liberar com hb_xfree posteriormente */
+            p->last_error = hb_strdup( err );
+         }
 
          duckdb_destroy_result( &res );
          hb_retnl( -1 );
@@ -190,10 +207,16 @@ HB_FUNC( DUCKDBQUERY )
       if( duckdb_query( p->conn, sql, &( pRes->result ) ) == DuckDBError )
       {
          if( p->last_error )
-            duckdb_free( p->last_error );
+         {
+            hb_xfree( p->last_error );
+            p->last_error = NULL;
+         }
 
          const char * err = duckdb_result_error( &( pRes->result ) );
-         p->last_error = err ? hb_strdup( err ) : NULL;
+         if( err )
+         {
+            p->last_error = hb_strdup( err );
+         }
 
          duckdb_destroy_result( &( pRes->result ) );
          hb_xfree( pRes );
@@ -284,8 +307,9 @@ HB_FUNC( DUCKDBQUERY )
       PHB_ITEM qry_handle = hb_itemArrayNew( 6 );
       hb_arraySetPtr( qry_handle, 1, ( void * ) pRes );
       hb_arraySetNL(  qry_handle, 2, 0 );
-      hb_arraySetNL(  qry_handle, 3, ( long ) pRes->total_rows );
-      hb_arraySetNL(  qry_handle, 4, ( long ) pRes->total_cols );
+      /* CORRIGIDO: Conversão segura sem truncamento explícito para suportar grandes volumes (idx_t para tipos de tamanho adequado ou tratamento seguro) */
+      hb_arraySetNLL( qry_handle, 3, ( HB_MAXINT ) pRes->total_rows );
+      hb_arraySetNLL( qry_handle, 4, ( HB_MAXINT ) pRes->total_cols );
       hb_arraySetNI(  qry_handle, 5, 3 );
       hb_arraySetForward( qry_handle, 6, aStruct );
 
@@ -336,6 +360,7 @@ HB_FUNC( DUCKDBGETDATA )
       {
          idx_t row_idx = ( idx_t ) ( nRow - 1 );
 
+         /* Melhoria de Tipos Opcional / Extensiva: Mantém a compatibilidade com varchar ou pode ser estendida para tipos nativos */
          char * val_str = duckdb_value_varchar( &( pRes->result ), ( idx_t ) col_idx, row_idx );
          if( ! val_str )
          {
