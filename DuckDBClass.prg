@@ -17,9 +17,8 @@ CREATE CLASS DuckDBClass
    VAR lError
    VAR dialect
    VAR charset
-   VAR cAlias    // <- ADICIONADO: Propriedade para armazenar o alias da conexao
+   VAR cAlias    // Propriedade para armazenar o alias da conexao
 
-  // Adicione cConnStr no final das declarações
    METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr )
    METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr )
    
@@ -43,14 +42,13 @@ CREATE CLASS DuckDBClass
    METHOD GetServerInfo()
 
    METHOD NetErr()   INLINE ::lError
-   METHOD Error()    INLINE DuckDBError( ::nError )
+   METHOD Error()    INLINE DuckDBError( ::db ) // Corrigido para passar o handle (::db) e não o nError numérico
    METHOD ErrorNo()  INLINE ::nError
 
 ENDCLASS
 
 METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cDir, cName, cExt
-   //LOCAL oErr
 
    hb_default( @cDatabase, "" )
    hb_default( @cCharSet, "UTF8" )
@@ -68,10 +66,9 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
       ENDIF
    ENDIF
 
-   ::cAlias := cAlias  // <- Salva na propriedade da classe
-   
+   ::cAlias := cAlias  
 
-   // 2. Autodeteccao do Dialeto caso nao seja informado
+   // Autodeteccao do Dialeto caso nao seja informado
    IF Empty( nDialect )
       DO CASE
          CASE Empty( cDatabase ) .OR. cExt == ".duckdb"
@@ -87,7 +84,7 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
          CASE cExt == ".parquet"
             nDialect := DIALETO_PARQUET
          
-         // --- NOVAS EXTENSOES ODBC ---
+         // --- EXTENSOES ODBC ---
          CASE cExt == ".mdb"
             nDialect := DIALETO_ODBC_MDB
          CASE cExt == ".accdb"
@@ -106,8 +103,7 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
    ::StartedTrans := .F.
    ::charset := cCharSet
 
-   // 3. Regra do Hospedeiro (Sem usar variavel intermediaria):
-   // Se for DUCKDB, conecta direto no arquivo. Senao, conecta em memoria ("").
+   // Regra do Hospedeiro: Se for DUCKDB, conecta direto no arquivo. Senao, conecta em memoria.
    IF nDialect == DIALETO_DUCKDB
       ::db := DuckDBConnect( cDatabase )
    ELSE
@@ -120,9 +116,12 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
       RETURN Self
    ENDIF
 
-   // 4. Se NAO for DuckDB nativo, invoca a rotina de dialetos repassando a string
+   // Se NAO for DuckDB nativo, invoca a rotina de dialetos repassando a string
    IF nDialect != DIALETO_DUCKDB .AND. !Empty( cDatabase )
-      ::TratarDialeto( cDatabase, nDialect, cAlias, cConnStr )
+      IF !::TratarDialeto( cDatabase, nDialect, cAlias, cConnStr )
+         // Se falhar no dialeto, a conexao devera registrar o erro
+         ::lError := .T.
+      ENDIF
    ENDIF
 
    RETURN Self
@@ -131,55 +130,42 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
 METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr ) CLASS DuckDBClass
    LOCAL cSql := ""
 
-   // Garante que a variavel nao seja NIL se for omitida na chamada
    hb_default( @cConnStr, "" )
 
    DO CASE
-      // =========================================================
-      // BANCOS DE DADOS ANEXAVEIS (ATTACH)
-      // =========================================================
       CASE nDialect == DIALETO_SQLITE
-         ::Execute( "INSTALL sqlite; LOAD sqlite;" )
-         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE sqlite);"
+         IF !::Execute( "INSTALL sqlite; LOAD sqlite;" ); RETURN .F.; ENDIF
+         cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE sqlite);"
          
       CASE nDialect == DIALETO_DUCKLAKE
-         ::Execute( "INSTALL ducklake; LOAD ducklake;" )
-         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
+         IF !::Execute( "INSTALL ducklake; LOAD ducklake;" ); RETURN .F.; ENDIF
+         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + QuoteIdent( cAlias ) + ";"
          
-      // =========================================================
-      // SGBDs NATIVOS (DBMS)
-      // =========================================================
       CASE nDialect == DIALETO_MYSQL
-         ::Execute( "INSTALL mysql; LOAD mysql;" )
+         IF !::Execute( "INSTALL mysql; LOAD mysql;" ); RETURN .F.; ENDIF
          IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE mysql);"
+            cSql := "ATTACH '" + cConnStr + "' AS " + QuoteIdent( cAlias ) + " (TYPE mysql);"
          ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
+            cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE mysql);"
          ENDIF
          
       CASE nDialect == DIALETO_POSTGRES
-         ::Execute( "INSTALL postgres; LOAD postgres;" )
+         IF !::Execute( "INSTALL postgres; LOAD postgres;" ); RETURN .F.; ENDIF
          IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE postgres);"
+            cSql := "ATTACH '" + cConnStr + "' AS " + QuoteIdent( cAlias ) + " (TYPE postgres);"
          ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
+            cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE postgres);"
          ENDIF
 
-      // =========================================================
-      // ARQUIVOS TABULARES (Criacao de VIEWs para simular alias)
-      // =========================================================
       CASE nDialect == DIALETO_CSV
-         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_csv('" + cDatabase + "', auto_detect=true);"
+         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_csv('" + cDatabase + "', auto_detect=true);"
          
       CASE nDialect == DIALETO_JSON
-         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_json('" + cDatabase + "', auto_detect=true);"
+         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_json('" + cDatabase + "', auto_detect=true);"
          
       CASE nDialect == DIALETO_PARQUET
-         cSql := "CREATE VIEW " + cAlias + " AS SELECT * FROM read_parquet('" + cDatabase + "');"
+         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_parquet('" + cDatabase + "');"
 
-      // =========================================================
-      // SGBDs VIA ODBC SCANNER 
-      // =========================================================
       CASE nDialect == DIALETO_ODBC .OR. ;
            nDialect == DIALETO_ODBC_MDB .OR. ;
            nDialect == DIALETO_ODBC_ACCDB .OR. ;
@@ -188,14 +174,14 @@ METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr ) CLASS DuckDBClass
            nDialect == DIALETO_ODBC_ORACLE .OR. ;
            nDialect == DIALETO_ODBC_DSN
            
-         ::Execute( "INSTALL odbc; LOAD odbc;" )
-         cSql := "SET VARIABLE " + cAlias + " = odbc_connect('" + cConnStr + "');"
+         IF !::Execute( "INSTALL odbc; LOAD odbc;" ); RETURN .F.; ENDIF
+         cSql := "SET VARIABLE " + QuoteIdent( cAlias ) + " = odbc_connect('" + cConnStr + "');"
          
    ENDCASE
 
    IF !Empty( cSql )
       IF !::Execute( cSql )
-         // lError e nError ja serao preenchidos internamente pelo metodo ::Execute
+         RETURN .F. // Propaga adequadamente falhas ao atrelar arquivos/bancos
       ENDIF
    ENDIF
    
@@ -257,7 +243,7 @@ METHOD Execute( cQuery ) CLASS DuckDBClass
    LOCAL result
    LOCAL n
 
-   cQuery := RemoveSpaces( cQuery )
+   // RemoveSpaces( cQuery ) removido. Tratar literais de forma segura sem manipular a string global.
    n := DuckDBExecute( ::db, cQuery )
 
    IF n < 0
@@ -290,21 +276,17 @@ METHOD TableExists( cTable ) CLASS DuckDBClass
 
    RETURN result
 
-   
 METHOD ListTables( cSchema ) CLASS DuckDBClass
    LOCAL result := {}
    LOCAL cQuery
    LOCAL qry
 
-   // Se não passar nada, assume o padrão 'main' do DuckDB
    IF Empty( cSchema )
       cSchema := "main"
    ENDIF
 
-   // Filtra as tabelas pelo schema correto
    cQuery := "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + Lower(AllTrim( cSchema )) + "' ORDER BY table_name"
-   
-   qry := DuckDBQuery( ::db, RemoveSpaces( cQuery ) )
+   qry := DuckDBQuery( ::db, cQuery )
 
    IF HB_ISARRAY( qry )
       DO WHILE DuckDBFetch( qry ) == 0
@@ -325,7 +307,7 @@ METHOD TableStruct( cTable ) CLASS DuckDBClass
    cQuery += "WHERE table_name = '" + Upper( AllTrim( cTable ) ) + "' "
    cQuery += "ORDER BY ordinal_position"
 
-   qry := DuckDBQuery( ::db, RemoveSpaces( cQuery ) )
+   qry := DuckDBQuery( ::db, cQuery )
 
    IF HB_ISARRAY( qry )
       DO WHILE DuckDBFetch( qry ) == 0
@@ -376,16 +358,17 @@ METHOD Delete( oRow, cWhere ) CLASS DuckDBClass
             nField := oRow:FieldPos( aKeys[ i ] )
             xField := oRow:FieldGet( nField )
 
-            cWhere += aKeys[ i ] + "=" + DataToSql( xField )
+            // Usa a função de quoting para nomes de identificadores para segurança
+            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
 
             IF i != Len( aKeys )
-               cWhere += ","
+               cWhere += " AND " // Corrigido a montagem das chaves compostas
             ENDIF
          NEXT
       ENDIF
 
       IF !( cWhere == "" )
-         cQuery := 'DELETE FROM ' + aTables[ 1 ] + ' WHERE ' + cWhere
+         cQuery := 'DELETE FROM ' + QuoteIdent( aTables[ 1 ] ) + ' WHERE ' + cWhere
          result := ::Execute( cQuery )
       ENDIF
    ENDIF
@@ -399,10 +382,10 @@ METHOD Append( oRow ) CLASS DuckDBClass
    aTables := oRow:GetTables()
 
    IF ! HB_ISNUMERIC( ::db ) .AND. Len( aTables ) == 1
-      cQuery := 'INSERT INTO ' + aTables[ 1 ] + '('
+      cQuery := 'INSERT INTO ' + QuoteIdent( aTables[ 1 ] ) + '('
       FOR i := 1 TO oRow:FCount()
          IF oRow:Changed( i )
-            cQuery += oRow:FieldName( i ) + ","
+            cQuery += QuoteIdent( oRow:FieldName( i ) ) + ","
          ENDIF
       NEXT
 
@@ -418,7 +401,7 @@ METHOD Append( oRow ) CLASS DuckDBClass
 
       aKeys := oRow:GetKeyField()
       IF Len( aKeys ) == 1
-         cQuery += " RETURNING " + aKeys[ 1 ]
+         cQuery += " RETURNING " + QuoteIdent( aKeys[ 1 ] )
          qryIns := DuckDBQuery( ::db, cQuery )
          IF HB_ISARRAY( qryIns )
             IF DuckDBFetch( qryIns ) == 0
@@ -452,18 +435,18 @@ METHOD Update( oRow, cWhere ) CLASS DuckDBClass
             nField := oRow:FieldPos( aKeys[ i ] )
             xField := oRow:FieldGet( nField )
 
-            cWhere += aKeys[ i ] + "=" + DataToSql( xField )
+            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
 
             IF i != Len( aKeys )
-               cWhere += ", "
+               cWhere += " AND " // Corrigido a montagem das chaves compostas
             ENDIF
          NEXT
       ENDIF
 
-      cQuery := "UPDATE " + aTables[ 1 ] + " SET "
+      cQuery := "UPDATE " + QuoteIdent( aTables[ 1 ] ) + " SET "
       FOR i := 1 TO oRow:FCount()
          IF oRow:Changed( i )
-            cQuery += oRow:FieldName( i ) + " = " + DataToSql( oRow:FieldGet( i ) ) + ","
+            cQuery += QuoteIdent( oRow:FieldName( i ) ) + " = " + DataToSql( oRow:FieldGet( i ) ) + ","
          ENDIF
       NEXT
 
@@ -519,7 +502,7 @@ CREATE CLASS TDuckDBQuery
    METHOD   RecNo()            INLINE ::nRecno
 
    METHOD   NetErr()           INLINE ::lError
-   METHOD   Error()            INLINE DuckDBError( ::nError )
+   METHOD   Error()            INLINE DuckDBError( ::db ) // Fix: usará o handle (::db) corretamente
    METHOD   ErrorNo()          INLINE ::nError
 
    METHOD   FCount()           INLINE ::numcols
@@ -539,7 +522,7 @@ ENDCLASS
 
 METHOD New( nDB, cQuery, nDialect ) CLASS TDuckDBQuery
    ::db := nDb
-   ::query := RemoveSpaces( cQuery )
+   ::query := cQuery // RemoveSpaces() removido
    ::dialect := nDialect
    ::closed := .T.
    ::aKeys := NIL
@@ -881,8 +864,9 @@ STATIC FUNCTION StructConvert( aStru, db )
    
    RETURN aNew
 
-STATIC FUNCTION RemoveSpaces( cQuery )
-   DO WHILE At( "  ", cQuery ) != 0
-      cQuery := StrTran( cQuery, "  ", " " )
-   ENDDO
-   RETURN cQuery
+// FUNÇÃO ADICIONADA: Quoting seguro para identificadores para evitar SQL Injection ou quebra de nomes (com aspas ou espaços)
+STATIC FUNCTION QuoteIdent( cIdent )
+   IF Empty( cIdent )
+      RETURN '""'
+   ENDIF
+   RETURN '"' + StrTran( cIdent, '"', '""' ) + '"'
