@@ -40,47 +40,35 @@ STATIC s_aConnections := {}
 FUNCTION DBDUCKDBCONNECTION( cDatabase, nDialect, cAlias, cConnStr )
    LOCAL db, cDir, cName, cExt
    
-   // Valores padrao para garantir compatibilidade
    IF cAlias == NIL; cAlias := "db_conn"; ENDIF
    IF cConnStr == NIL; cConnStr := ""; ENDIF
 
-   // 1. Auto-deteccao do dialeto pela extensao do arquivo se nDialect nao for informado
    IF nDialect == NIL .OR. nDialect == 0
       hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
       cExt := Lower( cExt )
       
       DO CASE
          CASE cExt == ".duckdb" .OR. cExt == ".db"
-            nDialect := 1   // DIALETO_DUCKDB
-            
+            nDialect := DIALETO_DUCKDB
          CASE cExt == ".sqlite" .OR. cExt == ".sqlite3"
-            nDialect := 3   // DIALETO_SQLITE
-            
+            nDialect := DIALETO_SQLITE
          CASE cExt == ".csv"
-            nDialect := 4   // DIALETO_CSV
-            
+            nDialect := DIALETO_CSV
          CASE cExt == ".json"
-            nDialect := 5   // DIALETO_JSON
-            
+            nDialect := DIALETO_JSON
          CASE cExt == ".parquet"
-            nDialect := 6   // DIALETO_PARQUET
-            
+            nDialect := DIALETO_PARQUET
          CASE cExt == ".mdb"
-            nDialect := 103 // DIALETO_ODBC_MDB
-            
+            nDialect := DIALETO_ODBC_MDB
          CASE cExt == ".accdb"
-            nDialect := 104 // DIALETO_ODBC_ACCDB
-            
+            nDialect := DIALETO_ODBC_ACCDB
          CASE cExt == ".gdb" .OR. cExt == ".fdb"
-            nDialect := 105 // DIALETO_ODBC_FIREBIRD
-            
+            nDialect := DIALETO_ODBC_FIREBIRD
          OTHERWISE
-            nDialect := 0   // Mantem 0 (Conexao Nativa Direta)
+            nDialect := 0
       ENDCASE
    ENDIF
 
-   // 2. Definicao do Hospedeiro (Memory para SGBDs/Arquivos anexos)
-   // Se for nativo (0) ou DuckDB explicitamente (1), conecta no arquivo.
    IF nDialect > 1
       db := DuckDBConnect( ":memory:" )
    ELSE
@@ -92,15 +80,14 @@ FUNCTION DBDUCKDBCONNECTION( cDatabase, nDialect, cAlias, cConnStr )
       RETURN 0
    ENDIF
 
-   // 3. Aciona o tratamento de dialeto e carrega as extensoes (Apenas > 1)
    IF nDialect > 1
       IF !TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
+         Alert( "Erro na preparacao do dialeto DuckDB: " + DuckDBError( db ) )
          DuckDBClose( db )
          RETURN 0
       ENDIF
    ENDIF
 
-   // 4. Guarda o contexto completo no array estatico
    AAdd( s_aConnections, { db, nDialect, cAlias, cConnStr } )
    RETURN Len( s_aConnections )
 
@@ -108,59 +95,51 @@ STATIC FUNCTION TratarDialeto_RDD( db, cDatabase, nDialect, cAlias, cConnStr )
    LOCAL cSql := ""
 
    DO CASE
-      // =========================================================
-      // BANCOS DE DADOS EM ARQUIVO (VIA ATTACH)
-      // =========================================================
-      CASE nDialect == 2 // DIALETO_DUCKLAKE
-         DuckDBExecute( db, "INSTALL ducklake; LOAD ducklake;" )
-         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + cAlias + ";"
+      CASE nDialect == DIALETO_DUCKLAKE
+         IF DuckDBExecute( db, "INSTALL ducklake; LOAD ducklake;" ) < 0; RETURN .F.; ENDIF
+         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + DUCKDB_QuoteIdent( cAlias ) + ";"
          
-      CASE nDialect == 3 // DIALETO_SQLITE
-         DuckDBExecute( db, "INSTALL sqlite; LOAD sqlite;" )
-         cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE sqlite);"
+      CASE nDialect == DIALETO_SQLITE
+         IF DuckDBExecute( db, "INSTALL sqlite; LOAD sqlite;" ) < 0; RETURN .F.; ENDIF
+         cSql := "ATTACH '" + cDatabase + "' AS " + DUCKDB_QuoteIdent( cAlias ) + " (TYPE sqlite);"
          
-      // =========================================================
-      // SGBDs NATIVOS (DBMS via ATTACH)
-      // =========================================================
-      CASE nDialect == 100 // DIALETO_MYSQL (ou MariaDB)
-         DuckDBExecute( db, "INSTALL mysql; LOAD mysql;" )
+      CASE nDialect == DIALETO_MYSQL
+         IF DuckDBExecute( db, "INSTALL mysql; LOAD mysql;" ) < 0; RETURN .F.; ENDIF
          IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE mysql);"
+            cSql := "ATTACH '" + cConnStr + "' AS " + DUCKDB_QuoteIdent( cAlias ) + " (TYPE mysql);"
          ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE mysql);"
+            cSql := "ATTACH '" + cDatabase + "' AS " + DUCKDB_QuoteIdent( cAlias ) + " (TYPE mysql);"
          ENDIF
          
-      CASE nDialect == 101 // DIALETO_POSTGRES
-         DuckDBExecute( db, "INSTALL postgres; LOAD postgres;" )
+      CASE nDialect == DIALETO_POSTGRES
+         IF DuckDBExecute( db, "INSTALL postgres; LOAD postgres;" ) < 0; RETURN .F.; ENDIF
          IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + cAlias + " (TYPE postgres);"
+            cSql := "ATTACH '" + cConnStr + "' AS " + DUCKDB_QuoteIdent( cAlias ) + " (TYPE postgres);"
          ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + cAlias + " (TYPE postgres);"
+            cSql := "ATTACH '" + cDatabase + "' AS " + DUCKDB_QuoteIdent( cAlias ) + " (TYPE postgres);"
          ENDIF
          
-      // =========================================================
-      // SGBDs VIA ODBC SCANNER 
-      // =========================================================
-      CASE nDialect >= 102 .AND. nDialect <= 108
-         DuckDBExecute( db, "INSTALL odbc; LOAD odbc;" )
-         cSql := "SET VARIABLE " + cAlias + " = odbc_connect('" + cConnStr + "');"
+      CASE nDialect >= DIALETO_ODBC .AND. nDialect <= DIALETO_ODBC_DSN
+         IF DuckDBExecute( db, "INSTALL odbc; LOAD odbc;" ) < 0; RETURN .F.; ENDIF
+         cSql := "SET VARIABLE " + DUCKDB_QuoteIdent( cAlias ) + " = odbc_connect('" + cConnStr + "');"
    ENDCASE
 
    IF !Empty( cSql )
-      DuckDBExecute( db, cSql )
+      IF DuckDBExecute( db, cSql ) < 0
+         RETURN .F.
+      ENDIF
    ENDIF
-
    RETURN .T.
    
 FUNCTION DBDUCKDBGETHANDLE( nConn )
-   IF nConn > 0 .AND. nConn <= Len( s_aConnections )
+   IF nConn > 0 .AND. nConn <= Len( s_aConnections ) .AND. s_aConnections[ nConn ] != NIL
       RETURN s_aConnections[ nConn ]
    ENDIF
    RETURN NIL   
 
 FUNCTION DBDUCKDBCLEARCONNECTION( nConn )
    LOCAL db
-   IF nConn > 0 .AND. nConn <= Len( s_aConnections )
+   IF nConn > 0 .AND. nConn <= Len( s_aConnections ) .AND. s_aConnections[ nConn ] != NIL
       db := s_aConnections[ nConn ][ 1 ]
       IF !Empty( db )
          DuckDBClose( db ) 
@@ -170,16 +149,28 @@ FUNCTION DBDUCKDBCLEARCONNECTION( nConn )
    RETURN SUCCESS
 
 FUNCTION DBDUCKDBCOMMIT( nConn )
-   LOCAL db := s_aConnections[ nConn ][ 1 ]
-   RETURN DuckDBExecute( db, "COMMIT" )
+   LOCAL db 
+   IF nConn > 0 .AND. nConn <= Len( s_aConnections ) .AND. s_aConnections[ nConn ] != NIL
+      db := s_aConnections[ nConn ][ 1 ]
+      RETURN DuckDBExecute( db, "COMMIT" )
+   ENDIF
+   RETURN -1
 
 FUNCTION DBDUCKDBROLLBACK( nConn )
-   LOCAL db := s_aConnections[ nConn ][ 1 ]
-   RETURN DuckDBExecute( db, "ROLLBACK" )
+   LOCAL db 
+   IF nConn > 0 .AND. nConn <= Len( s_aConnections ) .AND. s_aConnections[ nConn ] != NIL
+      db := s_aConnections[ nConn ][ 1 ]
+      RETURN DuckDBExecute( db, "ROLLBACK" )
+   ENDIF
+   RETURN -1
 
 // +--------------------------------------------------------------------
-// +    Configuração de Chave Primária
+// +    Auxiliares Internas
 // +--------------------------------------------------------------------
+
+STATIC FUNCTION DUCKDB_QuoteIdent( cIdent )
+   IF Empty( cIdent ); RETURN '""'; ENDIF
+   RETURN '"' + StrTran( cIdent, '"', '""' ) + '"'
 
 FUNCTION DUCKDB_SETPK( cAlias, cFields )
    LOCAL nWA, aWAData
@@ -202,13 +193,12 @@ FUNCTION DUCKDB_SETPK( cAlias, cFields )
    RETURN .F.
 
 STATIC FUNCTION DUCKDB_INIT( nRDD )
- USRRDD_RDDDATA( nRDD )
-  RETURN SUCCESS
+   USRRDD_RDDDATA( nRDD )
+   RETURN SUCCESS
 
 STATIC FUNCTION DUCKDB_NEW( pWA )
    LOCAL aWAData := Array( AREA_LEN )
    
-   // INICIALIZAÇÃO BLINDADA: Previne o erro "Called from LEN(0)" no dbAppend()
    aWAData[ AREA_CONN ]        := NIL
    aWAData[ AREA_TABLE ]       := ""
    aWAData[ AREA_PK ]          := {}
@@ -243,64 +233,50 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    LOCAL i, nCols, aStru, aField
    LOCAL cName, nType, nSize, nDec, cType
    LOCAL cDir, cTableName, cExt, cTableRef
-   LOCAL nDialect, cAlias
+   LOCAL nDialect, cAlias, nConnIdx
+
+   nConnIdx := aOpenInfo[ UR_OI_CONNECT ]
+
+   // Validação Rigorosa da Conexão
+   IF !Empty( nConnIdx ) .AND. nConnIdx > 0 .AND. nConnIdx <= Len( s_aConnections ) .AND. s_aConnections[ nConnIdx ] != NIL
+      aWAData[ AREA_CONN ] := s_aConnections[ nConnIdx ]
+   ELSEIF Len( s_aConnections ) > 0 .AND. s_aConnections[ Len( s_aConnections ) ] != NIL
+      aWAData[ AREA_CONN ] := s_aConnections[ Len( s_aConnections ) ]
+   ELSE
+      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Nenhuma conexao DuckDB ativa ou conexao invalida."
+      UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+   ENDIF
+   
+   db       := aWAData[ AREA_CONN ][ 1 ]
+   nDialect := aWAData[ AREA_CONN ][ 2 ]
+   cAlias   := aWAData[ AREA_CONN ][ 3 ]
 
    hb_FNameSplit( aOpenInfo[ UR_OI_NAME ], @cDir, @cTableName, @cExt )
    cTableName := AllTrim( cTableName )
 
-   IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
-      // Modificado para recuperar o array inteiro da conexao selecionada
-      aWAData[ AREA_CONN ] := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ]
-   ELSEIF Len( s_aConnections ) > 0
-      aWAData[ AREA_CONN ] := s_aConnections[ Len( s_aConnections ) ]
-   ENDIF
-   
-   db       := aWAData[ AREA_CONN ][ 1 ]
-   nDialect := aWAData[ AREA_CONN ][ 2 ] // Resgata o Dialeto salvo
-   cAlias   := aWAData[ AREA_CONN ][ 3 ] // Resgata o Alias do ATTACH
-
-   IF Empty( db )
-      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Nenhuma conexao DuckDB ativa."
-      UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
-   ENDIF
-
-// Resolve o nome correto da tabela baseado no dialeto utilizado
    DO CASE
-      CASE nDialect == 4 // DIALETO_CSV
+      CASE nDialect == DIALETO_CSV
          cTableRef := "read_csv_auto('" + aOpenInfo[ UR_OI_NAME ] + "')"
-         
-      CASE nDialect == 5 // DIALETO_JSON
+      CASE nDialect == DIALETO_JSON
          cTableRef := "read_json_auto('" + aOpenInfo[ UR_OI_NAME ] + "')"
-         
-      CASE nDialect == 6 // DIALETO_PARQUET
+      CASE nDialect == DIALETO_PARQUET
          cTableRef := "read_parquet('" + aOpenInfo[ UR_OI_NAME ] + "')"
-         
-      CASE nDialect >= 102 .AND. nDialect <= 108 // SGBDs via ODBC Scanner
+      CASE nDialect >= DIALETO_ODBC .AND. nDialect <= DIALETO_ODBC_DSN
          cTableRef := "odbc_scan(GETVARIABLE('" + cAlias + "'), '" + cTableName + "')"
-         
-      CASE ( nDialect >= 2 .AND. nDialect <= 3 ) .OR. ( nDialect == 100 .OR. nDialect == 101 )
-         // DuckLake, SQLite, MySQL e Postgres possuem ATTACH, acessamos pelo prefixo
-         cTableRef := cAlias + "." + cTableName
-         
-      OTHERWISE // Padrao (0) ou DuckDB Nativo (1) - Nao precisa de alias
-         cTableRef := cTableName
+      CASE ( nDialect >= DIALETO_DUCKLAKE .AND. nDialect <= DIALETO_SQLITE ) .OR. ( nDialect == DIALETO_MYSQL .OR. nDialect == DIALETO_POSTGRES )
+         cTableRef := DUCKDB_QuoteIdent( cAlias ) + "." + DUCKDB_QuoteIdent( cTableName )
+      OTHERWISE
+         cTableRef := DUCKDB_QuoteIdent( cTableName )
    ENDCASE
 
-
-
-   // Salva a referencia final no aWAData. Isso fara com que DUCKDB_FLUSH e DELETE funcionem sozinhos
    aWAData[ AREA_TABLE ] := cTableRef
-
    aWAData[ AREA_FIELDS ] := {}
    aWAData[ AREA_TYPES ]  := {}
 
-   // Usa o cTableRef para ler a estrutura corretamente
    qry := DuckDBQuery( db, "SELECT * FROM " + cTableRef + " LIMIT 0" )
    
-   // ... [MANTENHA O RESTANTE DA DUCKDB_OPEN INALTERADO] ...
-   
    IF !HB_ISARRAY( qry ) .OR. Len( qry ) < 6
-      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Falha ao ler estrutura da tabela no DuckDB."
+      oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Falha ao ler estrutura da tabela no DuckDB: " + DuckDBError(db)
       UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
    ENDIF
 
@@ -312,7 +288,6 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    FOR i := 1 TO nCols
       cName := Upper( AllTrim( aStru[ i ][ 1 ] ) )
       nType := aStru[ i ][ 2 ] 
-      
       nSize := iif( aStru[ i ][ 3 ] == NIL, 0, aStru[ i ][ 3 ] )
       nDec  := iif( aStru[ i ][ 4 ] == NIL, 0, aStru[ i ][ 4 ] )
 
@@ -320,7 +295,7 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
          CASE "BOOLEAN"; cType := HB_FT_LOGICAL; nSize := 1; nDec := 0; EXIT
          CASE "VARCHAR"; CASE "CHAR"; cType := HB_FT_STRING; EXIT
          CASE "INTEGER"; CASE "TINYINT"; CASE "SMALLINT"; cType := HB_FT_INTEGER; EXIT
-         CASE "BIGINT"; cType := HB_FT_LONG; EXIT
+         CASE "BIGINT"; CASE "HUGEINT"; cType := HB_FT_LONG; EXIT
          CASE "DOUBLE"; CASE "FLOAT"; CASE "DECIMAL"; CASE "NUMERIC"; cType := HB_FT_DOUBLE; EXIT
          CASE "DATE"; CASE "TIMESTAMP"; cType := HB_FT_DATE; nSize := 8; nDec := 0; EXIT
          CASE "BLOB"; cType := HB_FT_MEMO; nSize := 10; nDec := 0; EXIT
@@ -498,14 +473,14 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
                IF !( cFields == "" )
                   cFields += ", "; cValues += ", "
                ENDIF
-               cFields += aWAData[ AREA_FIELDS ][ i ]
+               cFields += DUCKDB_QuoteIdent( aWAData[ AREA_FIELDS ][ i ] )
                cValues += DUCKDB_ValToSql( aWAData[ AREA_ROWBUF ][ i ] )
             ENDIF
          NEXT
          
          cSql := "INSERT INTO " + aWAData[ AREA_TABLE ] + " (" + cFields + ") VALUES (" + cValues + ")"
          IF !Empty( aWAData[ AREA_PK ] )
-            cSql += " RETURNING " + aWAData[ AREA_PK ][ 1 ]
+            cSql += " RETURNING " + DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ 1 ] )
          ENDIF
          
          IF "RETURNING" $ cSql
@@ -516,9 +491,16 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
                    aWAData[ AREA_ROWBUF ][ nPosPK ] := Val( DuckDBGetData( qryIns, 1 ) )
                 ENDIF
                 DuckDBFree( qryIns )
+             ELSE
+                // Erro de SQL
+                oError := ErrorNew(); oError:Description := "Erro DUCKDBRDD (Insert): " + DuckDBError( db )
+                UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
              ENDIF
          ELSE
-             DuckDBExecute( db, cSql )
+             IF DuckDBExecute( db, cSql ) < 0
+                oError := ErrorNew(); oError:Description := "Erro DUCKDBRDD (Insert): " + DuckDBError( db )
+                UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+             ENDIF
          ENDIF
       ELSE
          IF Empty( aWAData[ AREA_PK ] )
@@ -530,7 +512,7 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
          FOR i := 1 TO Len( aWAData[ AREA_FIELDS ] )
             IF aWAData[ AREA_ROWBUF ][ i ] != NIL
                IF i > 1; cSql += ", "; ENDIF
-               cSql += aWAData[ AREA_FIELDS ][ i ] + " = " + DUCKDB_ValToSql( aWAData[ AREA_ROWBUF ][ i ] )
+               cSql += DUCKDB_QuoteIdent( aWAData[ AREA_FIELDS ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_ROWBUF ][ i ] )
             ENDIF
          NEXT
          
@@ -539,11 +521,15 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
             nPosPK := AScan( aWAData[ AREA_FIELDS ], aWAData[ AREA_PK ][ i ] )
             IF nPosPK > 0
                IF i > 1; cWhere += " AND "; ENDIF
-               cWhere += aWAData[ AREA_PK ][ i ] + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
+               cWhere += DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
             ENDIF
          NEXT
          cSql += " WHERE " + cWhere
-         DuckDBExecute( db, cSql )
+         
+         IF DuckDBExecute( db, cSql ) < 0
+            oError := ErrorNew(); oError:Description := "Erro DUCKDBRDD (Update): " + DuckDBError( db )
+            UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+         ENDIF
       ENDIF
 
       IF aWAData[ AREA_APPEND ]
@@ -571,12 +557,16 @@ STATIC FUNCTION DUCKDB_DELETE( nWA )
          nPosPK := AScan( aWAData[ AREA_FIELDS ], aWAData[ AREA_PK ][ i ] )
          IF nPosPK > 0
             IF i > 1; cWhere += " AND "; ENDIF
-            cWhere += aWAData[ AREA_PK ][ i ] + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
+            cWhere += DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
          ENDIF
       NEXT
       
       cSql := "DELETE FROM " + aWAData[ AREA_TABLE ] + " WHERE " + cWhere
-      DuckDBExecute( db, cSql )
+      
+      IF DuckDBExecute( db, cSql ) < 0
+         oError := ErrorNew(); oError:Description := "Erro DUCKDBRDD (Delete): " + DuckDBError( db )
+         UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+      ENDIF
       
       ADel( aWAData[ AREA_CACHE ], aWAData[ AREA_RECNO ] )
       ASize( aWAData[ AREA_CACHE ], Len( aWAData[ AREA_CACHE ] ) - 1 )
@@ -598,18 +588,18 @@ STATIC FUNCTION DUCKDB_ValToSql( xField )
 
 STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
-   LOCAL db, oError, cSql, n
+   LOCAL db, oError, cSql, n, nConnIdx
    LOCAL cDir, cName, cExt, cTableName
    LOCAL aStruct    := aWAData[ AREA_STRUCT ]
    LOCAL mFldNm, mFldType, mFldLen, mFldDec
 
-   // Extrai estritamente o nome da tabela (remove caminhos e a extensao .duckdb)
    hb_FNameSplit( aOpenInfo[ UR_OI_NAME ], @cDir, @cName, @cExt )
    cTableName := AllTrim( cName )
 
-   IF !Empty( aOpenInfo[ UR_OI_CONNECT ] ) .AND. aOpenInfo[ UR_OI_CONNECT ] <= Len( s_aConnections )
-      db := s_aConnections[ aOpenInfo[ UR_OI_CONNECT ] ][ 1 ]
-   ELSEIF Len( s_aConnections ) > 0
+   nConnIdx := aOpenInfo[ UR_OI_CONNECT ]
+   IF !Empty( nConnIdx ) .AND. nConnIdx > 0 .AND. nConnIdx <= Len( s_aConnections ) .AND. s_aConnections[ nConnIdx ] != NIL
+      db := s_aConnections[ nConnIdx ][ 1 ]
+   ELSEIF Len( s_aConnections ) > 0 .AND. s_aConnections[ Len( s_aConnections ) ] != NIL
       db := s_aConnections[ Len( s_aConnections ) ][ 1 ]
    ENDIF
 
@@ -622,7 +612,7 @@ STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
       RETURN FAILURE
    ENDIF
 
-   cSql := "CREATE TABLE " + cTableName + " ( "
+   cSql := "CREATE TABLE " + DUCKDB_QuoteIdent( cTableName ) + " ( "
 
    FOR n := 1 TO Len( aStruct )
       mFldNm   := aStruct[ n, UR_FI_NAME ]
@@ -634,7 +624,7 @@ STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
          cSql += ", "
       ENDIF
 
-      cSql += AllTrim( mFldNm ) + " "
+      cSql += DUCKDB_QuoteIdent( AllTrim( mFldNm ) ) + " "
 
       DO CASE
          CASE mFldType == HB_FT_AUTOINC .OR. mFldNm == "SR_RECNO"
@@ -672,7 +662,12 @@ STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
    
    cSql += " )"
 
-   DuckDBExecute( db, cSql )
+   IF DuckDBExecute( db, cSql ) < 0
+      oError := ErrorNew(); oError:GenCode := EG_CREATE
+      oError:Description := "Falha ao criar tabela: " + DuckDBError( db )
+      UR_SUPER_ERROR( nWA, oError )
+      RETURN FAILURE
+   ENDIF
 
    RETURN SUCCESS
       
@@ -686,8 +681,6 @@ STATIC FUNCTION DUCKDB_RDDINFO( nIndex, cargo )
    ENDCASE
 RETURN xRet
 
-
-
 STATIC FUNCTION DUCKDB_INFO( nWA, nIndex, cargo )
    LOCAL xRet := NIL
    DO CASE
@@ -696,7 +689,6 @@ STATIC FUNCTION DUCKDB_INFO( nWA, nIndex, cargo )
       OTHERWISE; xRet := UR_SUPER_INFO( nWA, nIndex, cargo )
    ENDCASE
 RETURN xRet   
-
 
 FUNCTION DUCKDBRDD_GETFUNCTABLE( pFuncCount, pFuncTable, pSuperTable, nRddID )
    LOCAL cSuperRDD := NIL
