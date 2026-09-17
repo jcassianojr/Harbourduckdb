@@ -39,6 +39,12 @@
 #define DUCKDB_DIALECT_CURRENT   3
 
 /* -------------------------------------------------------------------- */
+/* MODOS DE OPERAÇÃO DO RDD (CURSOR VS CACHE)                           */
+/* -------------------------------------------------------------------- */
+#define DUCKDBRDD_MODE_CURSOR    1
+#define DUCKDBRDD_MODE_CACHE     2
+
+/* -------------------------------------------------------------------- */
 /* DIALETOS E FORMATOS DE ARQUIVOS SUPORTADOS PELA DUCKDBCLASS          */
 /* -------------------------------------------------------------------- */
 
@@ -54,11 +60,11 @@
 #define DIALETO_MYSQL     100
 #define DIALETO_POSTGRES  101
 #define DIALETO_ODBC      102
-#define DIALETO_ODBC_MDB       103  // <- NOVO
-#define DIALETO_ODBC_ACCDB     104  // <- NOVO
-#define DIALETO_ODBC_FIREBIRD  105  // <- NOVO
-#define DIALETO_ODBC_MSSQL     106  // <- NOVO
-#define DIALETO_ODBC_ORACLE    107  // <- NOVO
-#define DIALETO_ODBC_DSN       108  // <- NOVO
+#define DIALETO_ODBC_MDB       103
+#define DIALETO_ODBC_ACCDB     104
+#define DIALETO_ODBC_FIREBIRD  105
+#define DIALETO_ODBC_MSSQL     106
+#define DIALETO_ODBC_ORACLE    107
+#define DIALETO_ODBC_DSN       108
 
 #endif /* DUCKDB_CH */
