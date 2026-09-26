@@ -325,8 +325,11 @@ METHOD TableStruct( cTable ) CLASS DuckDBClass
                cType := "N"; nSize := 9
             CASE "FLOAT" $ nType .OR. "DOUBLE" $ nType .OR. "DECIMAL" $ nType
                cType := "N"; nSize := 15
-            CASE "DATE" $ nType .OR. "TIMESTAMP" $ nType
+           CASE "DATE"
                cType := "D"; nSize := 8; nDec := 0
+            CASE "TIMESTAMP"
+               cType := "T"; nSize := 8; nDec := 0 // <-- Alterado de "D" para "T"
+               
             CASE "TIME" $ nType
                cType := "C"; nSize := 10; nDec := 0
             CASE "BLOB" $ nType
@@ -677,6 +680,13 @@ METHOD FieldGet( nField ) CLASS TDuckDBQuery
          ELSE
             result := hb_SToD()
          ENDIF
+         
+      ELSEIF cType == "T"
+         IF result != NIL
+            result := UniversalDateTime( result ) // <-- INJEÇÃO: Conversor Universal de Data e Hora
+         ELSE
+            result := hb_SToT()
+         ENDIF   
       ELSEIF cType == "L"
          IF result != NIL
             result := ( Val( result ) == 1 .OR. Upper( AllTrim( result ) ) == "T" .OR. result == .T. )
@@ -870,3 +880,67 @@ STATIC FUNCTION QuoteIdent( cIdent )
       RETURN '""'
    ENDIF
    RETURN '"' + StrTran( cIdent, '"', '""' ) + '"'
+   
+  // +--------------------------------------------------------------------
+// +  Função: UniversalDateTime
+// +  Objetivo: Tratar datas complexas mantendo e corrigindo o horário
+// +  Retorna: Timestamp nativo (T) de alta precisão
+// +--------------------------------------------------------------------
+STATIC FUNCTION UniversalDateTime( xData )
+
+   LOCAL cStr, cDataLimpa, aParts, i, dData
+   LOCAL cTime := "00:00:00"
+   LOCAL nHour := 0, nMin := 0, nSec := 0
+
+   // 1. Já é Data ou Timestamp? Trata a conversão direta
+   IF ValType( xData ) == "T"
+      RETURN xData
+   ELSEIF ValType( xData ) == "D"
+      RETURN hb_DateTime( Year(xData), Month(xData), Day(xData) )
+   ENDIF
+
+   // 2. Barreira para nulos ou variáveis não suportadas
+   IF ValType( xData ) <> "C" .OR. Empty( xData )
+      RETURN hb_DateTime( 0, 0, 0 )
+   ENDIF
+
+   // 3. Limpa espaços e conserta erros como ";" ou tags ISO "T"
+   cStr := AllTrim( xData )
+   cStr := StrTran( cStr, ";", ":" )
+   cStr := StrTran( cStr, "T", " " )
+
+   aParts := hb_ATokens( cStr, " " )
+   cDataLimpa := ""
+
+   // 4. Caçador de Horários
+   FOR i := 1 TO Len( aParts )
+      IF ":" $ aParts[i] .AND. Val( StrTran( aParts[i], ":", "" ) ) >= 0
+         cTime := aParts[i] // Isola apenas a hora encontrada
+      ELSE
+         cDataLimpa += aParts[i] + " " // Reconstrói string base só da data
+      ENDIF
+   NEXT
+
+   cDataLimpa := AllTrim( cDataLimpa )
+   
+   // 5. Utiliza o motor otimizado para extrair o calendário válido
+   dData := StrDateclass( cDataLimpa )
+
+   // Fallback se a rotina retornar vazio, checa direto via Harbour CToD
+   IF Empty( dData ) .AND. !Empty( CToD( cDataLimpa ) )
+      dData := CToD( cDataLimpa )
+   ENDIF
+
+   IF Empty( dData )
+      RETURN hb_DateTime( 0, 0, 0 )
+   ENDIF
+
+   // 6. Separa e converte as partes do Horário
+   aParts := hb_ATokens( cTime, ":" )
+   IF Len( aParts ) >= 1; nHour := Val( aParts[1] ); ENDIF
+   IF Len( aParts ) >= 2; nMin  := Val( aParts[2] ); ENDIF
+   IF Len( aParts ) >= 3; nSec  := Val( aParts[3] ); ENDIF
+
+   // 7. Retorna o Objeto Timestamp Oficial
+   RETURN hb_DateTime( Year( dData ), Month( dData ), Day( dData ), nHour, nMin, nSec ) 
+   
