@@ -298,7 +298,8 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
          CASE "BIGINT"; CASE "HUGEINT"; cType := HB_FT_LONG; EXIT
          CASE "DOUBLE"; CASE "FLOAT"; CASE "DECIMAL"; CASE "NUMERIC"; cType := HB_FT_DOUBLE; EXIT
          CASE "DATE"; cType := HB_FT_DATE; nSize := 8; nDec := 0; EXIT
-         CASE "TIMESTAMP"; cType := HB_FT_TIMESTAMP; nSize := 20; nDec := 0; EXIT // <-- Ajustado para Timestamp
+        CASE "TIMESTAMP"; CASE "TIMESTAMP_S"; CASE "TIMESTAMP_MS"; CASE "TIMESTAMP_NS"
+            cType := HB_FT_TIMESTAMP; nSize := 20; nDec := 0; EXIT
          
          
          CASE "BLOB"; cType := HB_FT_MEMO; nSize := 10; nDec := 0; EXIT
