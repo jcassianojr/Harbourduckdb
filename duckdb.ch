@@ -6,7 +6,8 @@
 #ifndef DUCKDB_CH
 #define DUCKDB_CH
 
-/* Tipos de dados oficiais mapeados pela C-API do DuckDB (duckdb_type) */
+/* duckdb.ch - Mapeamento de Tipos Atualizado para DuckDB v1.5.6+ */
+
 #define DUCKDB_TYPE_INVALID      0
 #define DUCKDB_TYPE_BOOLEAN      1
 #define DUCKDB_TYPE_TINYINT      2
@@ -28,9 +29,24 @@
 #define DUCKDB_TYPE_VARCHAR      18
 #define DUCKDB_TYPE_BLOB         19
 #define DUCKDB_TYPE_DECIMAL      20
-#define DUCKDB_TYPE_UUID         21
-#define DUCKDB_TYPE_BIT          22
+#define DUCKDB_TYPE_TIMESTAMP_S  21
+#define DUCKDB_TYPE_TIMESTAMP_MS 22
+#define DUCKDB_TYPE_TIMESTAMP_NS 23
+#define DUCKDB_TYPE_ENUM         24
+#define DUCKDB_TYPE_LIST         25
+#define DUCKDB_TYPE_STRUCT       26
+#define DUCKDB_TYPE_MAP          27
+#define DUCKDB_TYPE_ARRAY        28
+#define DUCKDB_TYPE_UUID         29
+#define DUCKDB_TYPE_UNION        30
+#define DUCKDB_TYPE_BIT          31
+#define DUCKDB_TYPE_TIME_TZ      32
+#define DUCKDB_TYPE_TIMESTAMP_TZ 33
 
+/* Notas da Atualização:
+   Certifique-se de que o DUCKDB_TYPE_VARCHAR e outros tipos que você utiliza
+   coincidem com este mapeamento, que inclui as inserções recentes da v1.5.6.
+*/
 /* Estados de retorno das funções da C-API do DuckDB */
 #define DUCKDB_SUCCESS           0
 #define DUCKDB_ERROR            -1

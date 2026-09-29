@@ -1,15 +1,16 @@
 /*
  * DuckDB DBMS low-level (client API) interface code for Harbour
  * Adapted for Harbour Project (Mirror of firebird.c)
+ * Updated to DuckDB 1.5.6+ Chunk/Vector API
  */
 
 #include "hbapi.h"
 #include "hbapierr.h"
 #include "hbapiitm.h"
-
 #include "duckdb.h"
+#include <string.h>
 
-/* Estruturas de controle de Conexão e Resultados */
+/* Estruturas de controle de Conexão e Resultados (Agora com Cache de Chunks) */
 
 typedef struct
 {
@@ -24,6 +25,12 @@ typedef struct
    idx_t current_row;
    idx_t total_rows;
    idx_t total_cols;
+   
+   /* Novas propriedades para o cache da Chunk API */
+   duckdb_data_chunk current_chunk;
+   idx_t current_chunk_idx;
+   idx_t chunk_start_row;
+   idx_t chunk_end_row;
 } HB_DUCKDB_RESULT;
 
 /* Garbage Collector Handlers para a Conexão */
@@ -48,7 +55,6 @@ static HB_GARBAGE_FUNC( HB_DUCKDB_release )
       }
       if( p->last_error )
       {
-         /* CORRIGIDO: Utiliza hb_xfree para liberar strings alocadas via hb_strdup/hb_xgrab */
          hb_xfree( p->last_error );
          p->last_error = NULL;
       }
@@ -87,7 +93,6 @@ HB_FUNC( DUCKDBCONNECT )
 
    if( duckdb_open_ext( db_path, &db, NULL, &err_msg ) == DuckDBError )
    {
-      /* CORRIGIDO: Preserva a mensagem de erro real retornada pela API do DuckDB se houver */
       if( err_msg )
       {
          hb_retc( err_msg );
@@ -176,7 +181,6 @@ HB_FUNC( DUCKDBEXECUTE )
          const char * err = duckdb_result_error( &res );
          if( err )
          {
-            /* CORRIGIDO: Alocação padronizada com hb_strdup para liberar com hb_xfree posteriormente */
             p->last_error = hb_strdup( err );
          }
 
@@ -225,13 +229,28 @@ HB_FUNC( DUCKDBQUERY )
       }
 
       pRes->current_row = 0;
-      pRes->total_rows  = duckdb_row_count( &( pRes->result ) );
       pRes->total_cols  = duckdb_column_count( &( pRes->result ) );
+
+      /* Conta as linhas somando o tamanho dos Chunks */
+      pRes->total_rows = 0;
+      idx_t chunk_count = duckdb_result_chunk_count( pRes->result );
+      idx_t i;
+      
+      for( i = 0; i < chunk_count; i++ )
+      {
+         duckdb_data_chunk temp_chunk = duckdb_result_get_chunk( pRes->result, i );
+         pRes->total_rows += duckdb_data_chunk_get_size( temp_chunk );
+         duckdb_destroy_data_chunk( &temp_chunk );
+      }
+      
+      pRes->current_chunk = NULL;
+      pRes->current_chunk_idx = 0;
+      pRes->chunk_start_row = 0;
+      pRes->chunk_end_row = 0;
 
       PHB_ITEM aStruct  = hb_itemArrayNew( pRes->total_cols );
       PHB_ITEM aColTemp = hb_itemNew( NULL );
 
-      idx_t i;
       for( i = 0; i < pRes->total_cols; i++ )
       {
          const char * col_name = duckdb_column_name( &( pRes->result ), i );
@@ -307,7 +326,6 @@ HB_FUNC( DUCKDBQUERY )
       PHB_ITEM qry_handle = hb_itemArrayNew( 6 );
       hb_arraySetPtr( qry_handle, 1, ( void * ) pRes );
       hb_arraySetNL(  qry_handle, 2, 0 );
-      /* CORRIGIDO: Conversão segura sem truncamento explícito para suportar grandes volumes (idx_t para tipos de tamanho adequado ou tratamento seguro) */
       hb_arraySetNLL( qry_handle, 3, ( HB_MAXINT ) pRes->total_rows );
       hb_arraySetNLL( qry_handle, 4, ( HB_MAXINT ) pRes->total_cols );
       hb_arraySetNI(  qry_handle, 5, 3 );
@@ -338,12 +356,12 @@ HB_FUNC( DUCKDBFETCH )
          {
             hb_arraySetNL( aParam, 2, nRow );
             pRes->current_row = ( idx_t ) nRow;
-            hb_retnl( 0 ); // Sucesso
+            hb_retnl( 0 );
             return;
          }
       }
    }
-   hb_retnl( -1 ); // EOF ou erro
+   hb_retnl( -1 );
 }
 
 HB_FUNC( DUCKDBGETDATA )
@@ -358,18 +376,119 @@ HB_FUNC( DUCKDBGETDATA )
 
       if( pRes && nRow > 0 && ( idx_t ) nRow <= pRes->total_rows && col_idx < ( int ) pRes->total_cols )
       {
-         idx_t row_idx = ( idx_t ) ( nRow - 1 );
+         idx_t target_row = ( idx_t ) ( nRow - 1 );
 
-         /* Melhoria de Tipos Opcional / Extensiva: Mantém a compatibilidade com varchar ou pode ser estendida para tipos nativos */
-         char * val_str = duckdb_value_varchar( &( pRes->result ), ( idx_t ) col_idx, row_idx );
-         if( ! val_str )
+         if ( pRes->current_chunk == NULL || target_row < pRes->chunk_start_row || target_row >= pRes->chunk_end_row )
          {
-            hb_ret(); // Retorna NIL
+            if ( pRes->current_chunk )
+            {
+               duckdb_destroy_data_chunk( &(pRes->current_chunk) );
+               pRes->current_chunk = NULL;
+            }
+            
+            idx_t chunk_count = duckdb_result_chunk_count( pRes->result );
+            idx_t current_row = 0;
+            idx_t i;
+            
+            for ( i = 0; i < chunk_count; i++ )
+            {
+               duckdb_data_chunk chunk = duckdb_result_get_chunk( pRes->result, i );
+               idx_t size = duckdb_data_chunk_get_size( chunk );
+               
+               if ( target_row < current_row + size )
+               {
+                  pRes->current_chunk = chunk;
+                  pRes->current_chunk_idx = i;
+                  pRes->chunk_start_row = current_row;
+                  pRes->chunk_end_row = current_row + size;
+                  break;
+               }
+               else
+               {
+                  current_row += size;
+                  duckdb_destroy_data_chunk( &chunk );
+               }
+            }
          }
-         else
+         
+         if ( pRes->current_chunk == NULL )
          {
-            hb_retc( val_str );
-            duckdb_free( val_str );
+            hb_ret();
+            return;
+         }
+         
+         idx_t row_in_chunk = target_row - pRes->chunk_start_row;
+         duckdb_vector vector = duckdb_data_chunk_get_vector( pRes->current_chunk, col_idx );
+         
+         uint64_t * validity = duckdb_vector_get_validity( vector );
+         if ( validity != NULL && !duckdb_validity_row_is_valid( validity, row_in_chunk ) )
+         {
+            hb_ret(); 
+            return;
+         }
+         
+         duckdb_type type = duckdb_column_type( &(pRes->result), col_idx );
+         
+         switch ( type )
+         {
+            case DUCKDB_TYPE_BOOLEAN: {
+               bool * bool_data = (bool *) duckdb_vector_get_data( vector );
+               hb_retl( bool_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_TINYINT: {
+               int8_t * int_data = (int8_t *) duckdb_vector_get_data( vector );
+               hb_retni( (int) int_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_SMALLINT: {
+               int16_t * int_data = (int16_t *) duckdb_vector_get_data( vector );
+               hb_retni( (int) int_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_INTEGER: {
+               int32_t * int_data = (int32_t *) duckdb_vector_get_data( vector );
+               hb_retnl( (long) int_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_BIGINT: {
+               int64_t * int_data = (int64_t *) duckdb_vector_get_data( vector );
+               hb_retnll( (HB_LONGLONG) int_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_FLOAT: {
+               float * float_data = (float *) duckdb_vector_get_data( vector );
+               hb_retnd( (double) float_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_DOUBLE: {
+               double * double_data = (double *) duckdb_vector_get_data( vector );
+               hb_retnd( double_data[ row_in_chunk ] );
+               break;
+            }
+            case DUCKDB_TYPE_VARCHAR: {
+               duckdb_string_t * string_data = (duckdb_string_t *) duckdb_vector_get_data( vector );
+               duckdb_string_t str_val = string_data[ row_in_chunk ];
+               
+               const char * str_ptr = duckdb_string_t_data( &str_val );
+               idx_t str_len = (idx_t) duckdb_string_t_length( str_val ); // Corrigido para passar por valor[cite: 13]
+               
+               hb_retclen( str_ptr, ( HB_SIZE ) str_len );
+               break;
+            }
+            default: {
+               char * val_str = duckdb_value_varchar( &( pRes->result ), ( idx_t ) col_idx, target_row );
+               if( val_str )
+               {
+                  hb_retc( val_str );
+                  duckdb_free( val_str );
+               }
+               else
+               {
+                  hb_ret();
+               }
+               break;
+            }
          }
          return;
       }
@@ -387,6 +506,11 @@ HB_FUNC( DUCKDBFREE )
 
       if( pRes )
       {
+         if( pRes->current_chunk )
+         {
+            duckdb_destroy_data_chunk( &( pRes->current_chunk ) );
+         }
+
          duckdb_destroy_result( &( pRes->result ) );
          hb_xfree( pRes );
          hb_arraySetPtr( aParam, 1, NULL );

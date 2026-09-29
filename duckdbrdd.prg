@@ -794,4 +794,4 @@ STATIC FUNCTION UniversalDateTime( xData )
 
    // 7. Retorna o Objeto Timestamp Oficial
    RETURN hb_DateTime( Year( dData ), Month( dData ), Day( dData ), nHour, nMin, nSec ) 
-   f
+   
