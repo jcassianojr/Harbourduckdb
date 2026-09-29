@@ -327,8 +327,8 @@ METHOD TableStruct( cTable ) CLASS DuckDBClass
                cType := "N"; nSize := 15
            CASE "DATE"
                cType := "D"; nSize := 8; nDec := 0
-            CASE "TIMESTAMP"
-               cType := "T"; nSize := 8; nDec := 0 // <-- Alterado de "D" para "T"
+          CASE "TIMESTAMP" $ nType .OR. "TIMESTAMP_S" $ nType .OR. "TIMESTAMP_MS" $ nType .OR. "TIMESTAMP_NS" $ nType
+               cType := "T"; nSize := 20; nDec := 0
                
             CASE "TIME" $ nType
                cType := "C"; nSize := 10; nDec := 0
