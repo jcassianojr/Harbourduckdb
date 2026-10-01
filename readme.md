@@ -30,6 +30,8 @@ Isso permite que você escolha entre:
 - **Motor de Baixo Nível Otimizado**: Interface em C (`duckdb.c`) atualizada para a API de Chunks e Vetores (`duckdb_data_chunk`, `duckdb_vector`), garantindo máxima performance de leitura em comparação com chamadas isoladas por célula
 - **Compatibilidade Avançada (v1.5.6+)**: Suporte completo ao mapeamento de tipos da árvore oficial do DuckDB, incluindo subtipos de timestamps de alta precisão (`TIMESTAMP_S`, `TIMESTAMP_MS`, `TIMESTAMP_NS`)
 - **Múltiplos Dialetos**: Suporte a conexões e anexação de fontes externas como SQLite, DuckLake, MySQL, PostgreSQL, arquivos planos (CSV, JSON, Parquet) e extensões ODBC
+- **Leitura pelo RDD**: `DUCKDBRDD` mantém o resultado da consulta aberto para navegar também pelos registros que já existiam na tabela; `RecCount()` usa a contagem completa do resultado e é atualizada após inserções e exclusões pela área.
+- **Extensões consistentes**: arquivos `.duckdb` e `.db` são tratados como DuckDB; use `.sqlite` ou `.sqlite3` para abrir SQLite, tanto pela classe quanto pelo RDD.
 - **Segurança e Confiabilidade**: Conversor universal de datas e horários (`UniversalDateTime`) para evitar quebras em campos temporais complexos, além de tratamento seguro para identificadores (`QuoteIdent`)
 - **Trabalho em 64 bits**: Preparado e testado para ambiente Windows + MinGW64 com suporte a inteiros de 64 bits (`HB_LONGLONG`)
 

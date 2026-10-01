@@ -27,7 +27,8 @@
 #define AREA_QUERY        12
 #define AREA_FETCHED_EOF  13
 #define AREA_TYPES        14
-#define AREA_LEN          14
+#define AREA_RECCOUNT     15
+#define AREA_LEN          15
 
 ANNOUNCE DUCKDBRDD
 
@@ -213,6 +214,7 @@ STATIC FUNCTION DUCKDB_NEW( pWA )
    aWAData[ AREA_QUERY ]       := NIL
    aWAData[ AREA_FETCHED_EOF ] := .T.
    aWAData[ AREA_TYPES ]       := {}
+   aWAData[ AREA_RECCOUNT ]    := 0
    
    USRRDD_AREADATA( pWA, aWAData )
    RETURN SUCCESS
@@ -231,7 +233,7 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
    LOCAL db, qry, oError
    LOCAL i, nCols, aStru, aField
-   LOCAL cName, nType, nSize, nDec, cType
+   LOCAL cName, nType, nSize, nDec, cType, cQuery
    LOCAL cDir, cTableName, cExt, cTableRef
    LOCAL nDialect, cAlias, nConnIdx
 
@@ -273,7 +275,8 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
    aWAData[ AREA_FIELDS ] := {}
    aWAData[ AREA_TYPES ]  := {}
 
-   qry := DuckDBQuery( db, "SELECT * FROM " + cTableRef + " LIMIT 0" )
+   cQuery := "SELECT * FROM " + cTableRef
+   qry := DuckDBQuery( db, cQuery )
    
    IF !HB_ISARRAY( qry ) .OR. Len( qry ) < 6
       oError := ErrorNew(); oError:GenCode := EG_OPEN; oError:Description := "Falha ao ler estrutura da tabela no DuckDB: " + DuckDBError(db)
@@ -282,6 +285,8 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
 
    nCols := qry[ 4 ] 
    aStru := qry[ 6 ] 
+   aWAData[ AREA_QUERY ] := qry
+   aWAData[ AREA_RECCOUNT ] := qry[ 3 ]
 
    UR_SUPER_SETFIELDEXTENT( nWA, nCols )
 
@@ -294,12 +299,13 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
       SWITCH nType
          CASE "BOOLEAN"; cType := HB_FT_LOGICAL; nSize := 1; nDec := 0; EXIT
          CASE "VARCHAR"; CASE "CHAR"; cType := HB_FT_STRING; EXIT
-         CASE "INTEGER"; CASE "TINYINT"; CASE "SMALLINT"; cType := HB_FT_INTEGER; EXIT
-         CASE "BIGINT"; CASE "HUGEINT"; cType := HB_FT_LONG; EXIT
+         CASE "INTEGER"; CASE "TINYINT"; CASE "SMALLINT"; CASE "UTINYINT"; CASE "USMALLINT"; cType := HB_FT_INTEGER; EXIT
+         CASE "BIGINT"; CASE "HUGEINT"; CASE "UINTEGER"; CASE "UBIGINT"; cType := HB_FT_LONG; EXIT
          CASE "DOUBLE"; CASE "FLOAT"; CASE "DECIMAL"; CASE "NUMERIC"; cType := HB_FT_DOUBLE; EXIT
          CASE "DATE"; cType := HB_FT_DATE; nSize := 8; nDec := 0; EXIT
         CASE "TIMESTAMP"; CASE "TIMESTAMP_S"; CASE "TIMESTAMP_MS"; CASE "TIMESTAMP_NS"
             cType := HB_FT_TIMESTAMP; nSize := 20; nDec := 0; EXIT
+        CASE "TIME"; cType := HB_FT_STRING; nSize := 15; nDec := 0; EXIT
          
          
          CASE "BLOB"; cType := HB_FT_MEMO; nSize := 10; nDec := 0; EXIT
@@ -327,12 +333,17 @@ STATIC FUNCTION DUCKDB_OPEN( nWA, aOpenInfo )
       UR_SUPER_ADDFIELD( nWA, aField )
    NEXT
 
-   aWAData[ AREA_FETCHED_EOF ] := .T.
+   aWAData[ AREA_CACHE ]       := {}
+   aWAData[ AREA_FETCHED_EOF ] := .F.
    aWAData[ AREA_RECNO ]       := 0
    aWAData[ AREA_BOF ]         := .T.
    aWAData[ AREA_EOF ]         := .T.
    
-   UR_SUPER_OPEN( nWA, aOpenInfo )
+   IF UR_SUPER_OPEN( nWA, aOpenInfo ) != SUCCESS
+      DuckDBFree( aWAData[ AREA_QUERY ] )
+      aWAData[ AREA_QUERY ] := NIL
+      RETURN FAILURE
+   ENDIF
    RETURN SUCCESS
 
    
@@ -343,7 +354,7 @@ STATIC FUNCTION DUCKDB_FETCH_NEXT( nWA )
 
    IF aWAData[ AREA_FETCHED_EOF ]; RETURN .F.; ENDIF
 
-   IF DuckDBFetch( qry ) == 0
+   IF HB_ISARRAY( qry ) .AND. DuckDBFetch( qry ) == 0
       nCols := qry[ 4 ]
       aRow  := Array( nCols )
       
@@ -357,10 +368,14 @@ STATIC FUNCTION DUCKDB_FETCH_NEXT( nWA )
                CASE cType == HB_FT_DOUBLE .OR. cType == HB_FT_LONG .OR. cType == HB_FT_INTEGER; xVal := 0
                CASE cType == HB_FT_LOGICAL; xVal := .F.
                CASE cType == HB_FT_DATE; xVal := CToD("")
+               CASE cType == HB_FT_TIMESTAMP; xVal := hb_SToT()
             ENDCASE
          ELSE
             IF cType == HB_FT_LOGICAL
-               xVal := ( Val( xVal ) == 1 .OR. Upper( AllTrim( xVal ) ) == "T" .OR. xVal == .T. )
+               IF !HB_ISLOGICAL( xVal )
+                  xVal := ( ( HB_ISNUMERIC( xVal ) .AND. xVal == 1 ) .OR. ;
+                     ( HB_ISSTRING( xVal ) .AND. Upper( AllTrim( xVal ) ) == "T" ) )
+               ENDIF
             ELSEIF cType == HB_FT_DATE
                xVal := StrDateRdd( xVal )
                
@@ -369,7 +384,9 @@ STATIC FUNCTION DUCKDB_FETCH_NEXT( nWA )
                
                
             ELSEIF cType == HB_FT_DOUBLE .OR. cType == HB_FT_LONG .OR. cType == HB_FT_INTEGER
-               xVal := Val( xVal )
+               IF !HB_ISNUMERIC( xVal )
+                  xVal := Val( xVal )
+               ENDIF
             ENDIF
          ENDIF
          aRow[ i ] := xVal
@@ -455,7 +472,7 @@ STATIC FUNCTION DUCKDB_GOTO( nWA, nRecord )
 
 STATIC FUNCTION DUCKDB_RECCOUNT( nWA, nRecords )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
-   nRecords := Len( aWAData[ AREA_CACHE ] )
+   nRecords := aWAData[ AREA_RECCOUNT ]
    RETURN SUCCESS
 
 STATIC FUNCTION DUCKDB_BOF( nWA, lBof ); lBof := USRRDD_AREADATA( nWA )[ AREA_BOF ]; RETURN SUCCESS
@@ -465,6 +482,11 @@ STATIC FUNCTION DUCKDB_RECID( nWA, nRecNo ); nRecNo := USRRDD_AREADATA( nWA )[ A
 STATIC FUNCTION DUCKDB_APPEND( nWA, nRecords )
    LOCAL aWAData := USRRDD_AREADATA( nWA )
    HB_SYMBOL_UNUSED( nRecords )
+
+   DO WHILE !aWAData[ AREA_FETCHED_EOF ]
+      DUCKDB_FETCH_NEXT( nWA )
+   ENDDO
+
    aWAData[ AREA_ROWBUF ] := Array( Len( aWAData[ AREA_FIELDS ] ) )
    aWAData[ AREA_APPEND ] := .T.; aWAData[ AREA_EOF ] := .T.
    RETURN SUCCESS
@@ -487,7 +509,11 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
             ENDIF
          NEXT
          
-         cSql := "INSERT INTO " + aWAData[ AREA_TABLE ] + " (" + cFields + ") VALUES (" + cValues + ")"
+         IF Empty( cFields )
+            cSql := "INSERT INTO " + aWAData[ AREA_TABLE ] + " DEFAULT VALUES"
+         ELSE
+            cSql := "INSERT INTO " + aWAData[ AREA_TABLE ] + " (" + cFields + ") VALUES (" + cValues + ")"
+         ENDIF
          IF !Empty( aWAData[ AREA_PK ] )
             cSql += " RETURNING " + DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ 1 ] )
          ENDIF
@@ -497,7 +523,7 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
              IF HB_ISARRAY( qryIns )
                 IF DuckDBFetch( qryIns ) == 0
                    nPosPK := AScan( aWAData[ AREA_FIELDS ], aWAData[ AREA_PK ][ 1 ] )
-                   aWAData[ AREA_ROWBUF ][ nPosPK ] := Val( DuckDBGetData( qryIns, 1 ) )
+                   aWAData[ AREA_ROWBUF ][ nPosPK ] := DUCKDB_NumericValue( DuckDBGetData( qryIns, 1 ) )
                 ENDIF
                 DuckDBFree( qryIns )
              ELSE
@@ -517,22 +543,32 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
             UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
          ENDIF
          
-         cSql := "UPDATE " + aWAData[ AREA_TABLE ] + " SET "
+         cSql := ""
          FOR i := 1 TO Len( aWAData[ AREA_FIELDS ] )
             IF aWAData[ AREA_ROWBUF ][ i ] != NIL
-               IF i > 1; cSql += ", "; ENDIF
+               IF !Empty( cSql ); cSql += ", "; ENDIF
                cSql += DUCKDB_QuoteIdent( aWAData[ AREA_FIELDS ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_ROWBUF ][ i ] )
             ENDIF
          NEXT
+
+         IF Empty( cSql )
+            aWAData[ AREA_ROWBUF ] := NIL
+            RETURN SUCCESS
+         ENDIF
+         cSql := "UPDATE " + aWAData[ AREA_TABLE ] + " SET " + cSql
          
          cWhere := ""
          FOR i := 1 TO Len( aWAData[ AREA_PK ] )
             nPosPK := AScan( aWAData[ AREA_FIELDS ], aWAData[ AREA_PK ][ i ] )
             IF nPosPK > 0
-               IF i > 1; cWhere += " AND "; ENDIF
+               IF !Empty( cWhere ); cWhere += " AND "; ENDIF
                cWhere += DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
             ENDIF
          NEXT
+         IF Empty( cWhere )
+            oError := ErrorNew(); oError:Description := "DUCKDBRDD: UPDATE sem campos de Primary Key validos."
+            UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+         ENDIF
          cSql += " WHERE " + cWhere
          
          IF DuckDBExecute( db, cSql ) < 0
@@ -544,6 +580,7 @@ STATIC FUNCTION DUCKDB_FLUSH( nWA )
       IF aWAData[ AREA_APPEND ]
          AAdd( aWAData[ AREA_CACHE ], AClone( aWAData[ AREA_ROWBUF ] ) )
          aWAData[ AREA_APPEND ] := .F.; aWAData[ AREA_RECNO ]  := Len( aWAData[ AREA_CACHE ] )
+         aWAData[ AREA_RECCOUNT ]++
       ELSE
          aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ] ] := AClone( aWAData[ AREA_ROWBUF ] )
       ENDIF
@@ -565,10 +602,15 @@ STATIC FUNCTION DUCKDB_DELETE( nWA )
       FOR i := 1 TO Len( aWAData[ AREA_PK ] )
          nPosPK := AScan( aWAData[ AREA_FIELDS ], aWAData[ AREA_PK ][ i ] )
          IF nPosPK > 0
-            IF i > 1; cWhere += " AND "; ENDIF
+            IF !Empty( cWhere ); cWhere += " AND "; ENDIF
             cWhere += DUCKDB_QuoteIdent( aWAData[ AREA_PK ][ i ] ) + " = " + DUCKDB_ValToSql( aWAData[ AREA_CACHE ][ aWAData[ AREA_RECNO ], nPosPK ] )
          ENDIF
       NEXT
+
+      IF Empty( cWhere )
+         oError := ErrorNew(); oError:Description := "DUCKDBRDD: DELETE sem campos de Primary Key validos."
+         UR_SUPER_ERROR( nWA, oError ); RETURN FAILURE
+      ENDIF
       
       cSql := "DELETE FROM " + aWAData[ AREA_TABLE ] + " WHERE " + cWhere
       
@@ -579,6 +621,7 @@ STATIC FUNCTION DUCKDB_DELETE( nWA )
       
       ADel( aWAData[ AREA_CACHE ], aWAData[ AREA_RECNO ] )
       ASize( aWAData[ AREA_CACHE ], Len( aWAData[ AREA_CACHE ] ) - 1 )
+      aWAData[ AREA_RECCOUNT ]--
       IF aWAData[ AREA_RECNO ] > Len( aWAData[ AREA_CACHE ] ); aWAData[ AREA_EOF ] := .T.; ENDIF
    ENDIF
    RETURN SUCCESS
@@ -589,10 +632,25 @@ STATIC FUNCTION DUCKDB_ValToSql( xField )
    CASE "D"
       IF Empty( xField ); RETURN "NULL"; ENDIF
       RETURN "'" + StrZero( Year( xField ), 4 ) + "-" + StrZero( Month( xField ), 2 ) + "-" + StrZero( Day( xField ), 2 ) + "'"
+   CASE "T"
+      RETURN "CAST('" + Left( hb_TToS( xField ), 4 ) + "-" + ;
+         SubStr( hb_TToS( xField ), 5, 2 ) + "-" + ;
+         SubStr( hb_TToS( xField ), 7, 2 ) + " " + ;
+         SubStr( hb_TToS( xField ), 9, 2 ) + ":" + ;
+         SubStr( hb_TToS( xField ), 11, 2 ) + ":" + ;
+         SubStr( hb_TToS( xField ), 13 ) + "' AS TIMESTAMP)"
    CASE "N"; RETURN Str( xField )
    CASE "L"; RETURN iif( xField, "TRUE", "FALSE" )
    ENDSWITCH
    RETURN "NULL"
+
+STATIC FUNCTION DUCKDB_NumericValue( xValue )
+   IF HB_ISNUMERIC( xValue )
+      RETURN xValue
+   ELSEIF HB_ISSTRING( xValue ) .AND. !Empty( xValue )
+      RETURN Val( xValue )
+   ENDIF
+   RETURN 0
 
 
 STATIC FUNCTION DUCKDB_CREATE( nWA, aOpenInfo )
@@ -731,8 +789,116 @@ FUNCTION DUCKDBRDD_GETFUNCTABLE( pFuncCount, pFuncTable, pSuperTable, nRddID )
 INIT PROC DUCKDB_INIT_REGISTER()
    rddRegister( "DUCKDBRDD", RDT_FULL )
    RETURN
-   
-   
+
+// Converts date strings from common database and HTTP formats to Harbour dates.
+STATIC FUNCTION StrDateRdd( xData )
+   LOCAL dRet := CToD( "" )
+   LOCAL cTemp, aParts
+   LOCAL i, nMes, cMes, cAno, cDia, nDia, nAno, cMesStr
+   LOCAL cCleanData
+   LOCAL aMonthsEN := { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
+   LOCAL aMonthsPT := { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
+
+   IF ValType( xData ) == "D"
+      RETURN xData
+   ENDIF
+
+   IF ValType( xData ) != "C" .OR. Empty( xData )
+      RETURN dRet
+   ENDIF
+
+   cCleanData := Upper( AllTrim( xData ) )
+   IF cCleanData == "NULL" .OR. cCleanData == "NIL" .OR. ;
+      cCleanData == "<NULL>" .OR. cCleanData == "NUL" .OR. ;
+      cCleanData == "/  /" .OR. cCleanData == "-  -"
+      RETURN dRet
+   ENDIF
+
+   cTemp := AllTrim( xData )
+   cTemp := StrTran( cTemp, ",", " " )
+   cTemp := StrTran( cTemp, "-", " " )
+   DO WHILE "  " $ cTemp
+      cTemp := StrTran( cTemp, "  ", " " )
+   ENDDO
+   aParts := hb_ATokens( AllTrim( cTemp ), " " )
+
+   IF Len( aParts ) >= 4
+      FOR i := 1 TO Len( aParts )
+         cMesStr := Upper( Left( aParts[ i ], 3 ) )
+         nMes := AScan( aMonthsEN, cMesStr )
+         IF nMes == 0
+            nMes := AScan( aMonthsPT, cMesStr )
+         ENDIF
+
+         IF nMes > 0
+            cMes := StrZero( nMes, 2 )
+            IF i == 2 .AND. Len( aParts ) >= 5
+               cDia := StrZero( Val( aParts[ 3 ] ), 2 )
+               cAno := aParts[ 5 ]
+            ELSEIF i == 3
+               cDia := StrZero( Val( aParts[ 2 ] ), 2 )
+               cAno := aParts[ 4 ]
+               IF Len( cAno ) == 2
+                  nAno := Val( cAno )
+                  cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
+               ENDIF
+            ELSE
+               LOOP
+            ENDIF
+
+            nDia := Val( cDia )
+            nAno := Val( cAno )
+            IF nDia >= 1 .AND. nDia <= 31 .AND. nAno >= 1000 .AND. Len( cAno ) == 4
+               dRet := SToD( cAno + cMes + cDia )
+               IF !Empty( dRet )
+                  RETURN dRet
+               ENDIF
+            ENDIF
+         ENDIF
+      NEXT
+   ENDIF
+
+   cTemp := AllTrim( xData )
+   cTemp := StrTran( cTemp, "-", "/" )
+   cTemp := StrTran( cTemp, ".", "/" )
+   aParts := hb_ATokens( cTemp, "/" )
+
+   IF Len( aParts ) == 3
+      IF Len( aParts[ 1 ] ) == 4
+         cAno := aParts[ 1 ]
+         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
+         cDia := StrZero( Val( aParts[ 3 ] ), 2 )
+      ELSE
+         cDia := StrZero( Val( aParts[ 1 ] ), 2 )
+         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
+         cAno := aParts[ 3 ]
+         IF Len( cAno ) == 2
+            nAno := Val( cAno )
+            cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
+         ENDIF
+      ENDIF
+      IF cAno + cMes + cDia == "00000000"
+         RETURN CToD( "" )
+      ENDIF
+      dRet := SToD( cAno + cMes + cDia )
+      RETURN iif( Empty( dRet ), CToD( "" ), dRet )
+   ELSE
+      IF Len( cTemp ) == 8
+         IF Val( Left( cTemp, 4 ) ) > 1900
+            dRet := SToD( cTemp )
+         ELSE
+            dRet := SToD( Right( cTemp, 4 ) + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
+         ENDIF
+      ELSEIF Len( cTemp ) == 6
+         nAno := Val( Right( cTemp, 2 ) )
+         cAno := iif( nAno < 50, "20" + Right( cTemp, 2 ), "19" + Right( cTemp, 2 ) )
+         dRet := SToD( cAno + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
+      ELSE
+         dRet := CToD( xData )
+      ENDIF
+   ENDIF
+   RETURN dRet
+
  // +--------------------------------------------------------------------
 // +  Função: UniversalDateTime
 // +  Objetivo: Tratar datas complexas mantendo e corrigindo o horário

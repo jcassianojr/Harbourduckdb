@@ -56,10 +56,14 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
    HB_SYMBOL_UNUSED( cUser )
    HB_SYMBOL_UNUSED( cPassword )
 
+   IF !Empty( cDatabase )
+      hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
+      cExt := Lower( cExt )
+   ENDIF
+
    // Se o usuario nao informou o alias, a classe assume e formata o nome limpo
    IF Empty( cAlias )
       IF !Empty( cDatabase )
-         hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
          cAlias := Lower( StrTran( cName, " ", "_" ) )
       ELSE
          cAlias := "memoria"
@@ -71,11 +75,11 @@ METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) 
    // Autodeteccao do Dialeto caso nao seja informado
    IF Empty( nDialect )
       DO CASE
-         CASE Empty( cDatabase ) .OR. cExt == ".duckdb"
+         CASE Empty( cDatabase ) .OR. cExt == ".duckdb" .OR. cExt == ".db"
             nDialect := DIALETO_DUCKDB
          CASE cExt == ".ducklake"
             nDialect := DIALETO_DUCKLAKE
-         CASE cExt == ".sqlite" .OR. cExt == ".db"
+         CASE cExt == ".sqlite" .OR. cExt == ".sqlite3"
             nDialect := DIALETO_SQLITE
          CASE cExt == ".csv"
             nDialect := DIALETO_CSV
@@ -313,8 +317,8 @@ METHOD TableStruct( cTable ) CLASS DuckDBClass
       DO WHILE DuckDBFetch( qry ) == 0
          cField  := RTrim( iif( DuckDBGetData( qry, 1 ) == NIL, "", DuckDBGetData( qry, 1 ) ) )
          nType   := iif( DuckDBGetData( qry, 2 ) == NIL, "", DuckDBGetData( qry, 2 ) )
-         nSize   := Val( iif( DuckDBGetData( qry, 3 ) == NIL, "0", DuckDBGetData( qry, 3 ) ) )
-         nDec    := Val( iif( DuckDBGetData( qry, 4 ) == NIL, "0", DuckDBGetData( qry, 4 ) ) )
+         nSize   := NumericValue( DuckDBGetData( qry, 3 ) )
+         nDec    := NumericValue( DuckDBGetData( qry, 4 ) )
          
          DO CASE
             CASE "BOOLEAN" $ nType
@@ -325,9 +329,9 @@ METHOD TableStruct( cTable ) CLASS DuckDBClass
                cType := "N"; nSize := 9
             CASE "FLOAT" $ nType .OR. "DOUBLE" $ nType .OR. "DECIMAL" $ nType
                cType := "N"; nSize := 15
-           CASE "DATE"
+            CASE "DATE" $ nType
                cType := "D"; nSize := 8; nDec := 0
-          CASE "TIMESTAMP" $ nType .OR. "TIMESTAMP_S" $ nType .OR. "TIMESTAMP_MS" $ nType .OR. "TIMESTAMP_NS" $ nType
+            CASE "TIMESTAMP" $ nType
                cType := "T"; nSize := 20; nDec := 0
                
             CASE "TIME" $ nType
@@ -380,27 +384,29 @@ METHOD Delete( oRow, cWhere ) CLASS DuckDBClass
 
 METHOD Append( oRow ) CLASS DuckDBClass
    LOCAL result := .F.
-   LOCAL cQuery, i, aTables, aKeys, qryIns, nPosPK
+   LOCAL cQuery, cFields := "", cValues := ""
+   LOCAL i, aTables, aKeys, qryIns, nPosPK
 
    aTables := oRow:GetTables()
 
    IF ! HB_ISNUMERIC( ::db ) .AND. Len( aTables ) == 1
-      cQuery := 'INSERT INTO ' + QuoteIdent( aTables[ 1 ] ) + '('
       FOR i := 1 TO oRow:FCount()
          IF oRow:Changed( i )
-            cQuery += QuoteIdent( oRow:FieldName( i ) ) + ","
+            IF !Empty( cFields )
+               cFields += ", "
+               cValues += ", "
+            ENDIF
+            cFields += QuoteIdent( oRow:FieldName( i ) )
+            cValues += DataToSql( oRow:FieldGet( i ) )
          ENDIF
       NEXT
 
-      cQuery := Left( cQuery, Len( cQuery ) - 1 ) +  ") VALUES ("
-
-      FOR i := 1 TO oRow:FCount()
-         IF oRow:Changed( i )
-            cQuery += DataToSql( oRow:FieldGet( i ) ) + ","
-         ENDIF
-      NEXT
-
-      cQuery := Left( cQuery, Len( cQuery ) - 1  ) + ")"
+      cQuery := "INSERT INTO " + QuoteIdent( aTables[ 1 ] )
+      IF Empty( cFields )
+         cQuery += " DEFAULT VALUES"
+      ELSE
+         cQuery += " (" + cFields + ") VALUES (" + cValues + ")"
+      ENDIF
 
       aKeys := oRow:GetKeyField()
       IF Len( aKeys ) == 1
@@ -410,7 +416,7 @@ METHOD Append( oRow ) CLASS DuckDBClass
             IF DuckDBFetch( qryIns ) == 0
                nPosPK := oRow:FieldPos( aKeys[ 1 ] )
                IF nPosPK > 0
-                  oRow:FieldPut( nPosPK, Val( DuckDBGetData( qryIns, 1 ) ) )
+                  oRow:FieldPut( nPosPK, NumericValue( DuckDBGetData( qryIns, 1 ) ) )
                ENDIF
             ENDIF
             DuckDBFree( qryIns )
@@ -425,7 +431,7 @@ METHOD Append( oRow ) CLASS DuckDBClass
 
 METHOD Update( oRow, cWhere ) CLASS DuckDBClass
    LOCAL result := .F.
-   LOCAL aKeys, cQuery, i, nField, xField, aTables
+   LOCAL aKeys, cQuery, cSet := "", i, nField, xField, aTables
 
    aTables := oRow:GetTables()
 
@@ -438,23 +444,24 @@ METHOD Update( oRow, cWhere ) CLASS DuckDBClass
             nField := oRow:FieldPos( aKeys[ i ] )
             xField := oRow:FieldGet( nField )
 
-            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
-
-            IF i != Len( aKeys )
-               cWhere += " AND " // Corrigido a montagem das chaves compostas
+            IF !Empty( cWhere )
+               cWhere += " AND "
             ENDIF
+            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
          NEXT
       ENDIF
 
-      cQuery := "UPDATE " + QuoteIdent( aTables[ 1 ] ) + " SET "
       FOR i := 1 TO oRow:FCount()
          IF oRow:Changed( i )
-            cQuery += QuoteIdent( oRow:FieldName( i ) ) + " = " + DataToSql( oRow:FieldGet( i ) ) + ","
+            IF !Empty( cSet )
+               cSet += ", "
+            ENDIF
+            cSet += QuoteIdent( oRow:FieldName( i ) ) + " = " + DataToSql( oRow:FieldGet( i ) )
          ENDIF
       NEXT
 
-      IF !( cWhere == "" )
-         cQuery := Left( cQuery, Len( cQuery ) - 1 ) + " WHERE " + cWhere
+      IF !Empty( cSet ) .AND. !Empty( cWhere )
+         cQuery := "UPDATE " + QuoteIdent( aTables[ 1 ] ) + " SET " + cSet + " WHERE " + cWhere
          result := ::Execute( cQuery )
       ENDIF
    ENDIF
@@ -536,7 +543,7 @@ METHOD LastRec() CLASS TDuckDBQuery
    LOCAL nTotal := 0
    LOCAL oQCount := TDuckDBQuery():New( ::db, "SELECT COUNT(*) FROM (" + ::query + ")", ::dialect )
    IF oQCount != NIL
-      nTotal := Val( oQCount:FieldGet( 1 ) )
+      nTotal := NumericValue( oQCount:FieldGet( 1 ) )
       oQCount:Destroy()
    ENDIF
    RETURN nTotal
@@ -551,13 +558,16 @@ METHOD Refresh() CLASS TDuckDBQuery
    ::lBof := .T.
    ::lEof := .F.
    ::nRecno := 0
-   ::closed := .F.
+   ::closed := .T.
    ::numcols := 0
    ::aStruct := {}
+   ::aTables := {}
+   ::qry := NIL
+   ::aKeys := NIL
    ::nError := 0
    ::lError := .F.
 
-   result := .T.
+   result := .F.
 
    qry := DuckDBQuery( ::db, ::query )
 
@@ -568,6 +578,8 @@ METHOD Refresh() CLASS TDuckDBQuery
       ::lError := .F.
       ::nError := 0
       ::qry := qry
+      ::closed := .F.
+      result := .T.
 
       FOR i := 1 TO Len( ::aStruct )
          IF hb_AScan( aTable, ::aStruct[ i ][ 5 ], , , .T. ) == 0
@@ -578,6 +590,7 @@ METHOD Refresh() CLASS TDuckDBQuery
    ELSE
       ::lError := .T.
       ::nError := qry
+      ::closed := .T.
    ENDIF
 
    RETURN result
@@ -670,13 +683,22 @@ METHOD FieldGet( nField ) CLASS TDuckDBQuery
          ENDIF
       ELSEIF cType == "N"
          IF result != NIL
-            result := Val( result )
+            result := NumericValue( result )
          ELSE
             result := 0
          ENDIF
       ELSEIF cType == "D"
          IF result != NIL
-            result := hb_SToD( Left( result, 4 ) + SubStr( result, 5, 2 ) + SubStr( result, 7, 2 ) )
+            IF ValType( result ) == "D"
+               result := result
+            ELSEIF ValType( result ) == "C"
+               result := StrDateClass( result )
+               IF Empty( result )
+                  result := CToD( "" )
+               ENDIF
+            ELSE
+               result := CToD( "" )
+            ENDIF
          ELSE
             result := hb_SToD()
          ENDIF
@@ -689,7 +711,12 @@ METHOD FieldGet( nField ) CLASS TDuckDBQuery
          ENDIF   
       ELSEIF cType == "L"
          IF result != NIL
-            result := ( Val( result ) == 1 .OR. Upper( AllTrim( result ) ) == "T" .OR. result == .T. )
+            IF HB_ISLOGICAL( result )
+               result := result
+            ELSE
+               result := ( NumericValue( result ) == 1 .OR. ;
+                  ( HB_ISSTRING( result ) .AND. Upper( AllTrim( result ) ) == "T" ) )
+            ENDIF
          ELSE
             result := .F.
          ENDIF
@@ -719,6 +746,7 @@ METHOD GetBlankRow() CLASS TDuckDBQuery
          CASE "N"; aRow[ i ] := 0; EXIT
          CASE "L"; aRow[ i ] := .F.; EXIT
          CASE "D"; aRow[ i ] := hb_SToD(); EXIT
+         CASE "T"; aRow[ i ] := hb_SToT(); EXIT
          ENDSWITCH
       NEXT
       result := TDuckDBRow():New( aRow, ::aStruct, ::db, ::dialect, ::aTables )
@@ -845,6 +873,13 @@ STATIC FUNCTION DataToSql( xField )
    CASE "D"
       IF Empty( xField ); RETURN "NULL"; ENDIF
       RETURN "'" + StrZero( Year( xField ), 4 ) + "-" + StrZero( Month( xField ), 2 ) + "-" + StrZero( Day( xField ), 2 ) + "'"
+   CASE "T"
+      RETURN "CAST('" + Left( hb_TToS( xField ), 4 ) + "-" + ;
+         SubStr( hb_TToS( xField ), 5, 2 ) + "-" + ;
+         SubStr( hb_TToS( xField ), 7, 2 ) + " " + ;
+         SubStr( hb_TToS( xField ), 9, 2 ) + ":" + ;
+         SubStr( hb_TToS( xField ), 11, 2 ) + ":" + ;
+         SubStr( hb_TToS( xField ), 13 ) + "' AS TIMESTAMP)"
    CASE "N"; RETURN Str( xField )
    CASE "L"; RETURN iif( xField, "TRUE", "FALSE" )
    ENDSWITCH
@@ -864,7 +899,32 @@ STATIC FUNCTION StructConvert( aStru, db )
    
    FOR i := 1 TO Len( aStru )
       cField  := RTrim( aStru[ i ][ 7 ] )
-      cType   := aStru[ i ][ 2 ] 
+      DO CASE
+         CASE "BOOLEAN" $ Upper( aStru[ i ][ 2 ] )
+            cType := "L"
+         CASE "DATE" $ Upper( aStru[ i ][ 2 ] )
+            cType := "D"
+         CASE "TIMESTAMP" $ Upper( aStru[ i ][ 2 ] )
+            cType := "T"
+         CASE "BLOB" $ Upper( aStru[ i ][ 2 ] )
+            cType := "M"
+         CASE "TINYINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "SMALLINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "INTEGER" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "BIGINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "HUGEINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "UTINYINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "USMALLINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "UINTEGER" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "UBIGINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "UHUGEINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "FLOAT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "DOUBLE" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
+              "DECIMAL" $ Upper( aStru[ i ][ 2 ] )
+            cType := "N"
+         OTHERWISE
+            cType := "C"
+      ENDCASE
       nSize   := aStru[ i ][ 3 ]
       nDec    := aStru[ i ][ 4 ]
       cTable  := RTrim( aStru[ i ][ 5 ] )
@@ -880,6 +940,122 @@ STATIC FUNCTION QuoteIdent( cIdent )
       RETURN '""'
    ENDIF
    RETURN '"' + StrTran( cIdent, '"', '""' ) + '"'
+
+STATIC FUNCTION NumericValue( xValue )
+   IF HB_ISNUMERIC( xValue )
+      RETURN xValue
+   ELSEIF HB_ISSTRING( xValue ) .AND. !Empty( xValue )
+      RETURN Val( xValue )
+   ENDIF
+   RETURN 0
+
+STATIC FUNCTION StrDateClass( xData )
+   LOCAL dRet := CToD( "" )
+   LOCAL cTemp, aParts
+   LOCAL i, nMes, cMes, cAno, cDia, nDia, nAno, cMesStr
+   LOCAL cCleanData
+   LOCAL aMonthsEN := { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
+   LOCAL aMonthsPT := { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
+
+   IF ValType( xData ) == "D"
+      RETURN xData
+   ENDIF
+
+   IF ValType( xData ) != "C" .OR. Empty( xData )
+      RETURN dRet
+   ENDIF
+
+   cCleanData := Upper( AllTrim( xData ) )
+   IF cCleanData == "NULL" .OR. cCleanData == "NIL" .OR. ;
+      cCleanData == "<NULL>" .OR. cCleanData == "NUL" .OR. ;
+      cCleanData == "/  /" .OR. cCleanData == "-  -"
+      RETURN dRet
+   ENDIF
+
+   cTemp := AllTrim( xData )
+   cTemp := StrTran( cTemp, ",", " " )
+   cTemp := StrTran( cTemp, "-", " " )
+   DO WHILE "  " $ cTemp
+      cTemp := StrTran( cTemp, "  ", " " )
+   ENDDO
+   aParts := hb_ATokens( AllTrim( cTemp ), " " )
+
+   IF Len( aParts ) >= 4
+      FOR i := 1 TO Len( aParts )
+         cMesStr := Upper( Left( aParts[ i ], 3 ) )
+         nMes := AScan( aMonthsEN, cMesStr )
+         IF nMes == 0
+            nMes := AScan( aMonthsPT, cMesStr )
+         ENDIF
+
+         IF nMes > 0
+            cMes := StrZero( nMes, 2 )
+            IF i == 2 .AND. Len( aParts ) >= 5
+               cDia := StrZero( Val( aParts[ 3 ] ), 2 )
+               cAno := aParts[ 5 ]
+            ELSEIF i == 3
+               cDia := StrZero( Val( aParts[ 2 ] ), 2 )
+               cAno := aParts[ 4 ]
+               IF Len( cAno ) == 2
+                  nAno := Val( cAno )
+                  cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
+               ENDIF
+            ELSE
+               LOOP
+            ENDIF
+
+            nDia := Val( cDia )
+            nAno := Val( cAno )
+            IF nDia >= 1 .AND. nDia <= 31 .AND. nAno >= 1000 .AND. Len( cAno ) == 4
+               dRet := SToD( cAno + cMes + cDia )
+               IF !Empty( dRet )
+                  RETURN dRet
+               ENDIF
+            ENDIF
+         ENDIF
+      NEXT
+   ENDIF
+
+   cTemp := AllTrim( xData )
+   cTemp := StrTran( cTemp, "-", "/" )
+   cTemp := StrTran( cTemp, ".", "/" )
+   aParts := hb_ATokens( cTemp, "/" )
+
+   IF Len( aParts ) == 3
+      IF Len( aParts[ 1 ] ) == 4
+         cAno := aParts[ 1 ]
+         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
+         cDia := StrZero( Val( aParts[ 3 ] ), 2 )
+      ELSE
+         cDia := StrZero( Val( aParts[ 1 ] ), 2 )
+         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
+         cAno := aParts[ 3 ]
+         IF Len( cAno ) == 2
+            nAno := Val( cAno )
+            cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
+         ENDIF
+      ENDIF
+      IF cAno + cMes + cDia == "00000000"
+         RETURN CToD( "" )
+      ENDIF
+      dRet := SToD( cAno + cMes + cDia )
+      RETURN iif( Empty( dRet ), CToD( "" ), dRet )
+   ELSE
+      IF Len( cTemp ) == 8
+         IF Val( Left( cTemp, 4 ) ) > 1900
+            dRet := SToD( cTemp )
+         ELSE
+            dRet := SToD( Right( cTemp, 4 ) + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
+         ENDIF
+      ELSEIF Len( cTemp ) == 6
+         nAno := Val( Right( cTemp, 2 ) )
+         cAno := iif( nAno < 50, "20" + Right( cTemp, 2 ), "19" + Right( cTemp, 2 ) )
+         dRet := SToD( cAno + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
+      ELSE
+         dRet := CToD( xData )
+      ENDIF
+   ENDIF
+   RETURN dRet
    
   // +--------------------------------------------------------------------
 // +  Função: UniversalDateTime
@@ -924,7 +1100,7 @@ STATIC FUNCTION UniversalDateTime( xData )
    cDataLimpa := AllTrim( cDataLimpa )
    
    // 5. Utiliza o motor otimizado para extrair o calendário válido
-   dData := StrDateclass( cDataLimpa )
+   dData := StrDateClass( cDataLimpa )
 
    // Fallback se a rotina retornar vazio, checa direto via Harbour CToD
    IF Empty( dData ) .AND. !Empty( CToD( cDataLimpa ) )
