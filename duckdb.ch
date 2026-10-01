@@ -57,7 +57,7 @@
 */
 /* Estados de retorno das funções da C-API do DuckDB */
 #define DUCKDB_SUCCESS           0
-#define DUCKDB_ERROR            -1
+#define DUCKDB_ERROR             1
 
 /* Modos de transação e comportamento */
 #define DUCKDB_DIALECT_CURRENT   3
