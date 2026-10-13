@@ -1,3 +1,30 @@
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Programa  : DuckDBClass.prg
+*+
+*+
+*+
+*+     Sistema:
+*+
+*+     Linguagem: Harbour
+*+
+*+     Autor: jcassiano
+*+
+*+     Copyright (c) 2024,  jcassiano
+*+
+*+     
+*+
+*+
+*+
+*+    Documentado em 13-Out-2026 as 11:04 am
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+
 /*
  * DuckDB RDBMS low-level interface code.
  * Adapted for Harbour Project (DuckDBClass - Espelho do Fb5class)
@@ -17,1106 +44,1350 @@ CREATE CLASS DuckDBClass
    VAR lError
    VAR dialect
    VAR charset
-   VAR cAlias    // Propriedade para armazenar o alias da conexao
+   VAR cAlias // Propriedade para armazenar o alias da conexao
 
-   METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr )
-   METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr )
-   
-   METHOD Destroy()  INLINE DuckDBClose( ::db )
-   METHOD Close()    INLINE DuckDBClose( ::db )
+   METHOD New(cDatabase,cUser,cPassword,nDialect,cCharSet,cAlias,cConnStr)
 
-   METHOD TableExists( cTable )
-   METHOD ListTables( cSchema )
-   METHOD TableStruct( cTable )
+   METHOD TratarDialeto(cDatabase,nDialect,cAlias,cConnStr)
+
+
+   METHOD Destroy() INLINE DuckDBClose(::db)
+
+   METHOD Close() INLINE DuckDBClose(::db)
+
+
+   METHOD TableExists(cTable)
+
+   METHOD ListTables(cSchema)
+
+   METHOD TableStruct(cTable)
+
 
    METHOD StartTransaction()
+
    METHOD Commit()
+
    METHOD Rollback()
 
-   METHOD Execute( cQuery )
-   METHOD Query( cQuery )
 
-   METHOD Update( oRow, cWhere )
-   METHOD Delete( oRow, cWhere )
-   METHOD Append( oRow )
+   METHOD Execute(cQuery)
+
+   METHOD Query(cQuery)
+
+
+   METHOD Update(oRow,cWhere)
+
+   METHOD Delete(oRow,cWhere)
+
+   METHOD Append(oRow)
+
    METHOD GetServerInfo()
 
-   METHOD NetErr()   INLINE ::lError
-   METHOD Error()    INLINE DuckDBError( ::db ) // Corrigido para passar o handle (::db) e não o nError numérico
-   METHOD ErrorNo()  INLINE ::nError
+
+   METHOD NetErr() INLINE ::lError
+
+   METHOD Error() INLINE DuckDBError(::db)  // Corrigido para passar o handle (::db) e não o nError numérico
+
+   METHOD ErrorNo() INLINE ::nError
+
 
 ENDCLASS
 
-METHOD New( cDatabase, cUser, cPassword, nDialect, cCharSet, cAlias, cConnStr ) CLASS DuckDBClass
-   LOCAL cDir, cName, cExt
+METHOD New(cDatabase,cUser,cPassword,nDialect,cCharSet,cAlias,cConnStr) CLASS DuckDBClass
 
-   hb_default( @cDatabase, "" )
-   hb_default( @cCharSet, "UTF8" )
+LOCAL cDir,cName,cExt
 
-   HB_SYMBOL_UNUSED( cUser )
-   HB_SYMBOL_UNUSED( cPassword )
+hb_default(@cDatabase,"")
+hb_default(@cCharSet,"UTF8")
 
-   IF !Empty( cDatabase )
-      hb_FNameSplit( cDatabase, @cDir, @cName, @cExt )
-      cExt := Lower( cExt )
-   ENDIF
+HB_SYMBOL_UNUSED(cUser)
+HB_SYMBOL_UNUSED(cPassword)
 
-   // Se o usuario nao informou o alias, a classe assume e formata o nome limpo
-   IF Empty( cAlias )
-      IF !Empty( cDatabase )
-         cAlias := Lower( StrTran( cName, " ", "_" ) )
-      ELSE
-         cAlias := "memoria"
-      ENDIF
-   ENDIF
+IF !Empty(cDatabase)
+   hb_FNameSplit(cDatabase,@cDir,@cName,@cExt)
+   cExt := Lower(cExt)
+ENDIF
 
-   ::cAlias := cAlias  
-
-   // Autodeteccao do Dialeto caso nao seja informado
-   IF Empty( nDialect )
-      DO CASE
-         CASE Empty( cDatabase ) .OR. cExt == ".duckdb" .OR. cExt == ".db"
-            nDialect := DIALETO_DUCKDB
-         CASE cExt == ".ducklake"
-            nDialect := DIALETO_DUCKLAKE
-         CASE cExt == ".sqlite" .OR. cExt == ".sqlite3"
-            nDialect := DIALETO_SQLITE
-         CASE cExt == ".csv"
-            nDialect := DIALETO_CSV
-         CASE cExt == ".json"
-            nDialect := DIALETO_JSON
-         CASE cExt == ".parquet"
-            nDialect := DIALETO_PARQUET
-         
-         // --- EXTENSOES ODBC ---
-         CASE cExt == ".mdb"
-            nDialect := DIALETO_ODBC_MDB
-         CASE cExt == ".accdb"
-            nDialect := DIALETO_ODBC_ACCDB
-         CASE cExt == ".fdb" .OR. cExt == ".gdb"
-            nDialect := DIALETO_ODBC_FIREBIRD
-            
-         OTHERWISE
-            nDialect := DIALETO_DUCKDB 
-      ENDCASE
-   ENDIF
-
-   ::Dialect := nDialect
-   ::lError := .F.
-   ::nError := 0
-   ::StartedTrans := .F.
-   ::charset := cCharSet
-
-   // Regra do Hospedeiro: Se for DUCKDB, conecta direto no arquivo. Senao, conecta em memoria.
-   IF nDialect == DIALETO_DUCKDB
-      ::db := DuckDBConnect( cDatabase )
+// Se o usuario nao informou o alias, a classe assume e formata o nome limpo
+IF Empty(cAlias)
+   IF !Empty(cDatabase)
+      cAlias := Lower(StrTran(cName," ","_"))
    ELSE
-      ::db := DuckDBConnect( "" )
+      cAlias := "memoria"
    ENDIF
+ENDIF
 
-   IF HB_ISNUMERIC( ::db )
-      ::lError := .T.
-      ::nError := ::db
-      RETURN Self
-   ENDIF
+::cAlias := cAlias
 
-   // Se NAO for DuckDB nativo, invoca a rotina de dialetos repassando a string
-   IF nDialect != DIALETO_DUCKDB .AND. !Empty( cDatabase )
-      IF !::TratarDialeto( cDatabase, nDialect, cAlias, cConnStr )
-         // Se falhar no dialeto, a conexao devera registrar o erro
-         ::lError := .T.
-      ENDIF
-   ENDIF
-
-   RETURN Self
-   
- 
-METHOD TratarDialeto( cDatabase, nDialect, cAlias, cConnStr ) CLASS DuckDBClass
-   LOCAL cSql := ""
-
-   hb_default( @cConnStr, "" )
-
+// Autodeteccao do Dialeto caso nao seja informado
+IF Empty(nDialect)
    DO CASE
-      CASE nDialect == DIALETO_SQLITE
-         IF !::Execute( "INSTALL sqlite; LOAD sqlite;" ); RETURN .F.; ENDIF
-         cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE sqlite);"
-         
-      CASE nDialect == DIALETO_DUCKLAKE
-         IF !::Execute( "INSTALL ducklake; LOAD ducklake;" ); RETURN .F.; ENDIF
-         cSql := "ATTACH 'ducklake:" + cDatabase + "' AS " + QuoteIdent( cAlias ) + ";"
-         
-      CASE nDialect == DIALETO_MYSQL
-         IF !::Execute( "INSTALL mysql; LOAD mysql;" ); RETURN .F.; ENDIF
-         IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + QuoteIdent( cAlias ) + " (TYPE mysql);"
-         ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE mysql);"
-         ENDIF
-         
-      CASE nDialect == DIALETO_POSTGRES
-         IF !::Execute( "INSTALL postgres; LOAD postgres;" ); RETURN .F.; ENDIF
-         IF !Empty( cConnStr )
-            cSql := "ATTACH '" + cConnStr + "' AS " + QuoteIdent( cAlias ) + " (TYPE postgres);"
-         ELSE
-            cSql := "ATTACH '" + cDatabase + "' AS " + QuoteIdent( cAlias ) + " (TYPE postgres);"
-         ENDIF
+   CASE Empty(cDatabase) .OR. cExt == ".duckdb" .OR. cExt == ".db"
+      nDialect := DIALETO_DUCKDB
+   CASE cExt == ".ducklake"
+      nDialect := DIALETO_DUCKLAKE
+   CASE cExt == ".sqlite" .OR. cExt == ".sqlite3"
+      nDialect := DIALETO_SQLITE
+   CASE cExt == ".csv"
+      nDialect := DIALETO_CSV
+   CASE cExt == ".json"
+      nDialect := DIALETO_JSON
+   CASE cExt == ".parquet"
+      nDialect := DIALETO_PARQUET
 
-      CASE nDialect == DIALETO_CSV
-         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_csv('" + cDatabase + "', auto_detect=true);"
-         
-      CASE nDialect == DIALETO_JSON
-         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_json('" + cDatabase + "', auto_detect=true);"
-         
-      CASE nDialect == DIALETO_PARQUET
-         cSql := "CREATE VIEW " + QuoteIdent( cAlias ) + " AS SELECT * FROM read_parquet('" + cDatabase + "');"
+      // --- EXTENSOES ODBC ---
+   CASE cExt == ".mdb"
+      nDialect := DIALETO_ODBC_MDB
+   CASE cExt == ".accdb"
+      nDialect := DIALETO_ODBC_ACCDB
+   CASE cExt == ".fdb" .OR. cExt == ".gdb"
+      nDialect := DIALETO_ODBC_FIREBIRD
 
-      CASE nDialect == DIALETO_ODBC .OR. ;
-           nDialect == DIALETO_ODBC_MDB .OR. ;
-           nDialect == DIALETO_ODBC_ACCDB .OR. ;
-           nDialect == DIALETO_ODBC_FIREBIRD .OR. ;
-           nDialect == DIALETO_ODBC_MSSQL .OR. ;
-           nDialect == DIALETO_ODBC_ORACLE .OR. ;
-           nDialect == DIALETO_ODBC_DSN
-           
-         IF !::Execute( "INSTALL odbc; LOAD odbc;" ); RETURN .F.; ENDIF
-         cSql := "SET VARIABLE " + QuoteIdent( cAlias ) + " = odbc_connect('" + cConnStr + "');"
-         
+   OTHERWISE
+      nDialect := DIALETO_DUCKDB
    ENDCASE
+ENDIF
 
-   IF !Empty( cSql )
-      IF !::Execute( cSql )
-         RETURN .F. // Propaga adequadamente falhas ao atrelar arquivos/bancos
-      ENDIF
+::Dialect      := nDialect
+::lError       := .F.
+::nError       := 0
+::StartedTrans := .F.
+::charset      := cCharSet
+
+// Regra do Hospedeiro: Se for DUCKDB, conecta direto no arquivo. Senao, conecta em memoria.
+IF nDialect == DIALETO_DUCKDB
+   ::db := DuckDBConnect(cDatabase)
+ELSE
+   ::db := DuckDBConnect("")
+ENDIF
+
+IF HB_ISNUMERIC(::db)
+   ::lError := .T.
+   ::nError := ::db
+   RETURN Self
+ENDIF
+
+// Se NAO for DuckDB nativo, invoca a rotina de dialetos repassando a string
+IF nDialect != DIALETO_DUCKDB .AND. !Empty(cDatabase)
+   IF !::TratarDialeto(cDatabase,nDialect,cAlias,cConnStr)
+      // Se falhar no dialeto, a conexao devera registrar o erro
+      ::lError := .T.
    ENDIF
-   
+ENDIF
+
+RETURN Self
+
+
+METHOD TratarDialeto(cDatabase,nDialect,cAlias,cConnStr) CLASS DuckDBClass
+
+LOCAL cSql := ""
+
+hb_default(@cConnStr,"")
+
+DO CASE
+CASE nDialect == DIALETO_SQLITE
+   IF !::Execute("INSTALL sqlite; LOAD sqlite;") 
+      RETURN .F. 
+   ENDIF
+   cSql := "ATTACH '"+cDatabase+"' AS "+QuoteIdent(cAlias)+" (TYPE sqlite);"
+
+CASE nDialect == DIALETO_DUCKLAKE
+   IF !::Execute("INSTALL ducklake; LOAD ducklake;") 
+      RETURN .F. 
+   ENDIF
+   cSql := "ATTACH 'ducklake:"+cDatabase+"' AS "+QuoteIdent(cAlias)+";"
+
+CASE nDialect == DIALETO_MYSQL
+   IF !::Execute("INSTALL mysql; LOAD mysql;") 
+      RETURN .F. 
+   ENDIF
+   IF !Empty(cConnStr)
+      cSql := "ATTACH '"+cConnStr+"' AS "+QuoteIdent(cAlias)+" (TYPE mysql);"
+   ELSE
+      cSql := "ATTACH '"+cDatabase+"' AS "+QuoteIdent(cAlias)+" (TYPE mysql);"
+   ENDIF
+
+CASE nDialect == DIALETO_POSTGRES
+   IF !::Execute("INSTALL postgres; LOAD postgres;") 
+      RETURN .F. 
+   ENDIF
+   IF !Empty(cConnStr)
+      cSql := "ATTACH '"+cConnStr+"' AS "+QuoteIdent(cAlias)+" (TYPE postgres);"
+   ELSE
+      cSql := "ATTACH '"+cDatabase+"' AS "+QuoteIdent(cAlias)+" (TYPE postgres);"
+   ENDIF
+
+CASE nDialect == DIALETO_CSV
+   cSql := "CREATE VIEW "+QuoteIdent(cAlias)+" AS SELECT * FROM read_csv('"+cDatabase+"', auto_detect=true);"
+
+CASE nDialect == DIALETO_JSON
+   cSql := "CREATE VIEW "+QuoteIdent(cAlias)+" AS SELECT * FROM read_json('"+cDatabase+"', auto_detect=true);"
+
+CASE nDialect == DIALETO_PARQUET
+   cSql := "CREATE VIEW "+QuoteIdent(cAlias)+" AS SELECT * FROM read_parquet('"+cDatabase+"');"
+
+CASE nDialect == DIALETO_ODBC .OR. ;
+    nDialect == DIALETO_ODBC_MDB .OR. ;
+    nDialect == DIALETO_ODBC_ACCDB .OR. ;
+    nDialect == DIALETO_ODBC_FIREBIRD .OR. ;
+    nDialect == DIALETO_ODBC_MSSQL .OR. ;
+    nDialect == DIALETO_ODBC_ORACLE .OR. ;
+    nDialect == DIALETO_ODBC_DSN
+
+   IF !::Execute("INSTALL odbc; LOAD odbc;") 
+      RETURN .F. 
+   ENDIF
+   cSql := "SET VARIABLE "+QuoteIdent(cAlias)+" = odbc_connect('"+cConnStr+"');"
+
+ENDCASE
+
+IF !Empty(cSql)
+   IF !::Execute(cSql)
+      RETURN .F.  // Propaga adequadamente falhas ao atrelar arquivos/bancos
+   ENDIF
+ENDIF
+
 RETURN .T.
 
 METHOD StartTransaction() CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL n := DuckDBExecute( ::db, "BEGIN TRANSACTION" )
 
-   IF n < 0
-      ::lError := .T.
-      ::nError := n
-   ELSE
-      result := .T.
-      ::lError := .F.
-      ::nError := 0
-      ::StartedTrans := .T.
-   ENDIF
+LOCAL result := .F.
+LOCAL n      := DuckDBExecute(::db,"BEGIN TRANSACTION")
 
-   RETURN result
+IF n < 0
+   ::lError := .T.
+   ::nError := n
+ELSE
+   result         := .T.
+   ::lError       := .F.
+   ::nError       := 0
+   ::StartedTrans := .T.
+ENDIF
+
+RETURN result
 
 METHOD Rollback() CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL n
 
-   IF ::StartedTrans
-      IF ( n := DuckDBExecute( ::db, "ROLLBACK" ) ) < 0
-         ::lError := .T.
-         ::nError := n
-      ELSE
-         ::lError := .F.
-         ::nError := 0
-         result := .T.
-         ::StartedTrans := .F.
-      ENDIF
-   ENDIF
+LOCAL result := .F.
+LOCAL n
 
-   RETURN result
-
-METHOD Commit() CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL n
-
-   IF ::StartedTrans
-      IF ( n := DuckDBExecute( ::db, "COMMIT" ) ) < 0
-         ::lError := .T.
-         ::nError := n
-      ELSE
-         ::lError := .F.
-         ::nError := 0
-         result := .T.
-         ::StartedTrans := .F.
-      ENDIF
-   ENDIF
-
-   RETURN result
-
-METHOD Execute( cQuery ) CLASS DuckDBClass
-   LOCAL result
-   LOCAL n
-
-   // RemoveSpaces( cQuery ) removido. Tratar literais de forma segura sem manipular a string global.
-   n := DuckDBExecute( ::db, cQuery )
-
-   IF n < 0
+IF ::StartedTrans
+   IF (n := DuckDBExecute(::db,"ROLLBACK")) < 0
       ::lError := .T.
       ::nError := n
-      result := .F.
    ELSE
-      ::lError := .F.
-      ::nError := 0
-      result := .T.
+      ::lError       := .F.
+      ::nError       := 0
+      result         := .T.
+      ::StartedTrans := .F.
    ENDIF
+ENDIF
 
-   RETURN result
+RETURN result
 
-METHOD Query( cQuery ) CLASS DuckDBClass
-   RETURN TDuckDBQuery():New( ::db, cQuery, ::dialect )
+METHOD Commit() CLASS DuckDBClass
 
-METHOD TableExists( cTable ) CLASS DuckDBClass
-   LOCAL cQuery
-   LOCAL result := .F.
-   LOCAL qry
+LOCAL result := .F.
+LOCAL n
 
-   cQuery := "SELECT table_name FROM information_schema.tables WHERE table_name = '" + Upper( AllTrim( cTable ) ) + "'"
-   qry := DuckDBQuery( ::db, cQuery )
-
-   IF HB_ISARRAY( qry )
-      result := ( DuckDBFetch( qry ) == 0 )
-      DuckDBFree( qry )
+IF ::StartedTrans
+   IF (n := DuckDBExecute(::db,"COMMIT")) < 0
+      ::lError := .T.
+      ::nError := n
+   ELSE
+      ::lError       := .F.
+      ::nError       := 0
+      result         := .T.
+      ::StartedTrans := .F.
    ENDIF
+ENDIF
 
-   RETURN result
+RETURN result
 
-METHOD ListTables( cSchema ) CLASS DuckDBClass
-   LOCAL result := {}
-   LOCAL cQuery
-   LOCAL qry
+METHOD Execute(cQuery) CLASS DuckDBClass
 
-   IF Empty( cSchema )
-      cSchema := "main"
-   ENDIF
+LOCAL result
+LOCAL n
 
-   cQuery := "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + Lower(AllTrim( cSchema )) + "' ORDER BY table_name"
-   qry := DuckDBQuery( ::db, cQuery )
+// RemoveSpaces( cQuery ) removido. Tratar literais de forma segura sem manipular a string global.
+n := DuckDBExecute(::db,cQuery)
 
-   IF HB_ISARRAY( qry )
-      DO WHILE DuckDBFetch( qry ) == 0
-         AAdd( result, DuckDBGetData( qry, 1 ) )
-      ENDDO
-      DuckDBFree( qry )
-   ENDIF
+IF n < 0
+   ::lError := .T.
+   ::nError := n
+   result   := .F.
+ELSE
+   ::lError := .F.
+   ::nError := 0
+   result   := .T.
+ENDIF
 
-   RETURN result   
+RETURN result
 
-METHOD TableStruct( cTable ) CLASS DuckDBClass
-   LOCAL result := {}
-   LOCAL cQuery, cType, nSize, cField, nType, nDec
-   LOCAL qry
+METHOD Query(cQuery) CLASS DuckDBClass
 
-   cQuery := "SELECT column_name, data_type, character_maximum_length, numeric_scale "
-   cQuery += "FROM information_schema.columns "
-   cQuery += "WHERE table_name = '" + Upper( AllTrim( cTable ) ) + "' "
-   cQuery += "ORDER BY ordinal_position"
+RETURN TDuckDBQuery():New(::db,cQuery,::dialect)
 
-   qry := DuckDBQuery( ::db, cQuery )
+METHOD TableExists(cTable) CLASS DuckDBClass
 
-   IF HB_ISARRAY( qry )
-      DO WHILE DuckDBFetch( qry ) == 0
-         cField  := RTrim( iif( DuckDBGetData( qry, 1 ) == NIL, "", DuckDBGetData( qry, 1 ) ) )
-         nType   := iif( DuckDBGetData( qry, 2 ) == NIL, "", DuckDBGetData( qry, 2 ) )
-         nSize   := NumericValue( DuckDBGetData( qry, 3 ) )
-         nDec    := NumericValue( DuckDBGetData( qry, 4 ) )
-         
-         DO CASE
-            CASE "BOOLEAN" $ nType
-               cType := "L"; nSize := 1; nDec  := 0
-            CASE "TINYINT" $ nType .OR. "SMALLINT" $ nType
-               cType := "N"; nSize := 5
-            CASE "INTEGER" $ nType .OR. "BIGINT" $ nType .OR. "HUGEINT" $ nType
-               cType := "N"; nSize := 9
-            CASE "FLOAT" $ nType .OR. "DOUBLE" $ nType .OR. "DECIMAL" $ nType
-               cType := "N"; nSize := 15
-            CASE "DATE" $ nType
-               cType := "D"; nSize := 8; nDec := 0
-            CASE "TIMESTAMP" $ nType
-               cType := "T"; nSize := 20; nDec := 0
-               
-            CASE "TIME" $ nType
-               cType := "C"; nSize := 10; nDec := 0
-            CASE "BLOB" $ nType
-               cType := "M"; nSize := 10; nDec := 0
-            OTHERWISE
-               cType := "C"; nDec  := 0
-               IF nSize == 0; nSize := 255; ENDIF
-         ENDCASE
+LOCAL cQuery
+LOCAL result := .F.
+LOCAL qry
 
-         AAdd( result, { cField, cType, nSize, nDec } )
-      ENDDO
-      DuckDBFree( qry )
-   ENDIF
+cQuery := "SELECT table_name FROM information_schema.tables WHERE table_name = '"+Upper(AllTrim(cTable))+"'"
+qry    := DuckDBQuery(::db,cQuery)
 
-   RETURN result
+IF HB_ISARRAY(qry)
+   result := (DuckDBFetch(qry) == 0)
+   DuckDBFree(qry)
+ENDIF
 
-METHOD Delete( oRow, cWhere ) CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL aKeys, i, nField, xField, cQuery, aTables
+RETURN result
 
-   aTables := oRow:GetTables()
+METHOD ListTables(cSchema) CLASS DuckDBClass
 
-   IF ! HB_ISNUMERIC( ::db ) .AND. Len( aTables ) == 1
-      IF cWhere == NIL
-         aKeys := oRow:GetKeyField()
+LOCAL result := {}
+LOCAL cQuery
+LOCAL qry
 
-         cWhere := ""
-         FOR i := 1 TO Len( aKeys )
-            nField := oRow:FieldPos( aKeys[ i ] )
-            xField := oRow:FieldGet( nField )
+IF Empty(cSchema)
+   cSchema := "main"
+ENDIF
 
-            // Usa a função de quoting para nomes de identificadores para segurança
-            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
+cQuery := "SELECT table_name FROM information_schema.tables WHERE table_schema = '"+Lower(AllTrim(cSchema))+"' ORDER BY table_name"
+qry    := DuckDBQuery(::db,cQuery)
 
-            IF i != Len( aKeys )
-               cWhere += " AND " // Corrigido a montagem das chaves compostas
-            ENDIF
-         NEXT
-      ENDIF
+IF HB_ISARRAY(qry)
+   DO WHILE DuckDBFetch(qry) == 0
+      AAdd(result,DuckDBGetData(qry,1))
+   ENDDO
+   DuckDBFree(qry)
+ENDIF
 
-      IF !( cWhere == "" )
-         cQuery := 'DELETE FROM ' + QuoteIdent( aTables[ 1 ] ) + ' WHERE ' + cWhere
-         result := ::Execute( cQuery )
-      ENDIF
-   ENDIF
+RETURN result
 
-   RETURN result
+METHOD TableStruct(cTable) CLASS DuckDBClass
 
-METHOD Append( oRow ) CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL cQuery, cFields := "", cValues := ""
-   LOCAL i, aTables, aKeys, qryIns, nPosPK
+LOCAL result := {}
+LOCAL cQuery,cType,nSize,cField,nType,nDec
+LOCAL qry
 
-   aTables := oRow:GetTables()
+cQuery := "SELECT column_name, data_type, character_maximum_length, numeric_scale "
+cQuery += "FROM information_schema.columns "
+cQuery += "WHERE table_name = '"+Upper(AllTrim(cTable))+"' "
+cQuery += "ORDER BY ordinal_position"
 
-   IF ! HB_ISNUMERIC( ::db ) .AND. Len( aTables ) == 1
-      FOR i := 1 TO oRow:FCount()
-         IF oRow:Changed( i )
-            IF !Empty( cFields )
-               cFields += ", "
-               cValues += ", "
-            ENDIF
-            cFields += QuoteIdent( oRow:FieldName( i ) )
-            cValues += DataToSql( oRow:FieldGet( i ) )
+qry := DuckDBQuery(::db,cQuery)
+
+IF HB_ISARRAY(qry)
+   DO WHILE DuckDBFetch(qry) == 0
+      cField := RTrim(iif(DuckDBGetData(qry,1) == NIL,"",DuckDBGetData(qry,1)))
+      nType  := iif(DuckDBGetData(qry,2) == NIL,"",DuckDBGetData(qry,2))
+      nSize  := NumericValue(DuckDBGetData(qry,3))
+      nDec   := NumericValue(DuckDBGetData(qry,4))
+
+      DO CASE
+      CASE "BOOLEAN" $ nType
+         cType := "L"
+         nSize := 1
+         nDec  := 0
+      CASE "TINYINT" $ nType .OR. "SMALLINT" $ nType
+         cType := "N"
+         nSize := 5
+      CASE "INTEGER" $ nType .OR. "BIGINT" $ nType .OR. "HUGEINT" $ nType
+         cType := "N"
+         nSize := 9
+      CASE "FLOAT" $ nType .OR. "DOUBLE" $ nType .OR. "DECIMAL" $ nType
+         cType := "N"
+         nSize := 15
+      CASE "DATE" $ nType
+         cType := "D"
+         nSize := 8
+         nDec  := 0
+      CASE "TIMESTAMP" $ nType
+         cType := "T"
+         nSize := 20
+         nDec  := 0
+
+      CASE "TIME" $ nType
+         cType := "C"
+         nSize := 10
+         nDec  := 0
+      CASE "BLOB" $ nType
+         cType := "M"
+         nSize := 10
+         nDec  := 0
+      OTHERWISE
+         cType := "C"
+         nDec  := 0
+         IF nSize == 0 
+            nSize := 255
          ENDIF
-      NEXT
+      ENDCASE
 
-      cQuery := "INSERT INTO " + QuoteIdent( aTables[ 1 ] )
-      IF Empty( cFields )
-         cQuery += " DEFAULT VALUES"
-      ELSE
-         cQuery += " (" + cFields + ") VALUES (" + cValues + ")"
-      ENDIF
+      AAdd(result,{cField,cType,nSize,nDec})
+   ENDDO
+   DuckDBFree(qry)
+ENDIF
 
+RETURN result
+
+METHOD Delete(oRow,cWhere) CLASS DuckDBClass
+
+LOCAL result := .F.
+LOCAL aKeys,i,nField,xField,cQuery,aTables
+
+aTables := oRow:GetTables()
+
+IF !HB_ISNUMERIC(::db) .AND. Len(aTables) == 1
+   IF cWhere == NIL
       aKeys := oRow:GetKeyField()
-      IF Len( aKeys ) == 1
-         cQuery += " RETURNING " + QuoteIdent( aKeys[ 1 ] )
-         qryIns := DuckDBQuery( ::db, cQuery )
-         IF HB_ISARRAY( qryIns )
-            IF DuckDBFetch( qryIns ) == 0
-               nPosPK := oRow:FieldPos( aKeys[ 1 ] )
-               IF nPosPK > 0
-                  oRow:FieldPut( nPosPK, NumericValue( DuckDBGetData( qryIns, 1 ) ) )
-               ENDIF
-            ENDIF
-            DuckDBFree( qryIns )
-            result := .T.
-         ENDIF
-      ELSE
-         result := ::Execute( cQuery )
-      ENDIF
-   ENDIF
 
-   RETURN result
+      cWhere := ""
+      FOR i := 1 TO Len(aKeys)
+         nField := oRow:FieldPos(aKeys[i])
+         xField := oRow:FieldGet(nField)
 
-METHOD Update( oRow, cWhere ) CLASS DuckDBClass
-   LOCAL result := .F.
-   LOCAL aKeys, cQuery, cSet := "", i, nField, xField, aTables
+         // Usa a função de quoting para nomes de identificadores para segurança
+         cWhere += QuoteIdent(aKeys[i])+"="+DataToSql(xField)
 
-   aTables := oRow:GetTables()
-
-   IF ! HB_ISNUMERIC( ::db ) .AND. Len( aTables ) == 1
-      IF cWhere == NIL
-         aKeys := oRow:GetKeyField()
-
-         cWhere := ""
-         FOR i := 1 TO Len( aKeys )
-            nField := oRow:FieldPos( aKeys[ i ] )
-            xField := oRow:FieldGet( nField )
-
-            IF !Empty( cWhere )
-               cWhere += " AND "
-            ENDIF
-            cWhere += QuoteIdent( aKeys[ i ] ) + "=" + DataToSql( xField )
-         NEXT
-      ENDIF
-
-      FOR i := 1 TO oRow:FCount()
-         IF oRow:Changed( i )
-            IF !Empty( cSet )
-               cSet += ", "
-            ENDIF
-            cSet += QuoteIdent( oRow:FieldName( i ) ) + " = " + DataToSql( oRow:FieldGet( i ) )
+         IF i != Len(aKeys)
+            cWhere += " AND "   // Corrigido a montagem das chaves compostas
          ENDIF
       NEXT
-
-      IF !Empty( cSet ) .AND. !Empty( cWhere )
-         cQuery := "UPDATE " + QuoteIdent( aTables[ 1 ] ) + " SET " + cSet + " WHERE " + cWhere
-         result := ::Execute( cQuery )
-      ENDIF
    ENDIF
 
-   RETURN result
+   IF !(cWhere == "")
+      cQuery := 'DELETE FROM '+QuoteIdent(aTables[1])+' WHERE '+cWhere
+      result :=::Execute(cQuery)
+   ENDIF
+ENDIF
+
+RETURN result
+
+METHOD Append(oRow) CLASS DuckDBClass
+
+LOCAL result := .F.
+LOCAL cQuery,cFields := "",cValues := ""
+LOCAL i,aTables,aKeys,qryIns,nPosPK
+
+aTables := oRow:GetTables()
+
+IF !HB_ISNUMERIC(::db) .AND. Len(aTables) == 1
+   FOR i := 1 TO oRow:FCount()
+      IF oRow:Changed(i)
+         IF !Empty(cFields)
+            cFields += ", "
+            cValues += ", "
+         ENDIF
+         cFields += QuoteIdent(oRow:FieldName(i))
+         cValues += DataToSql(oRow:FieldGet(i))
+      ENDIF
+   NEXT
+
+   cQuery := "INSERT INTO "+QuoteIdent(aTables[1])
+   IF Empty(cFields)
+      cQuery += " DEFAULT VALUES"
+   ELSE
+      cQuery += " ("+cFields+") VALUES ("+cValues+")"
+   ENDIF
+
+   aKeys := oRow:GetKeyField()
+   IF Len(aKeys) == 1
+      cQuery += " RETURNING "+QuoteIdent(aKeys[1])
+      qryIns := DuckDBQuery(::db,cQuery)
+      IF HB_ISARRAY(qryIns)
+         IF DuckDBFetch(qryIns) == 0
+            nPosPK := oRow:FieldPos(aKeys[1])
+            IF nPosPK > 0
+               oRow:FieldPut(nPosPK,NumericValue(DuckDBGetData(qryIns,1)))
+            ENDIF
+         ENDIF
+         DuckDBFree(qryIns)
+         result := .T.
+      ENDIF
+   ELSE
+      result :=::Execute(cQuery)
+   ENDIF
+ENDIF
+
+RETURN result
+
+METHOD Update(oRow,cWhere) CLASS DuckDBClass
+
+LOCAL result := .F.
+LOCAL aKeys,cQuery,cSet := "",i,nField,xField,aTables
+
+aTables := oRow:GetTables()
+
+IF !HB_ISNUMERIC(::db) .AND. Len(aTables) == 1
+   IF cWhere == NIL
+      aKeys := oRow:GetKeyField()
+
+      cWhere := ""
+      FOR i := 1 TO Len(aKeys)
+         nField := oRow:FieldPos(aKeys[i])
+         xField := oRow:FieldGet(nField)
+
+         IF !Empty(cWhere)
+            cWhere += " AND "
+         ENDIF
+         cWhere += QuoteIdent(aKeys[i])+"="+DataToSql(xField)
+      NEXT
+   ENDIF
+
+   FOR i := 1 TO oRow:FCount()
+      IF oRow:Changed(i)
+         IF !Empty(cSet)
+            cSet += ", "
+         ENDIF
+         cSet += QuoteIdent(oRow:FieldName(i))+" = "+DataToSql(oRow:FieldGet(i))
+      ENDIF
+   NEXT
+
+   IF !Empty(cSet) .AND. !Empty(cWhere)
+      cQuery := "UPDATE "+QuoteIdent(aTables[1])+" SET "+cSet+" WHERE "+cWhere
+      result :=::Execute(cQuery)
+   ENDIF
+ENDIF
+
+RETURN result
 
 METHOD GetServerInfo() CLASS DuckDBClass
-   LOCAL oQuery, cVersion := ""
 
-   oQuery := ::Query("SELECT version() AS VER")
-   
-   IF oQuery != NIL
-      oQuery:Fetch() 
-      IF !oQuery:Eof()
-         cVersion := oQuery:FieldGet( 1 )
-      ENDIF
-      oQuery:Destroy()
+LOCAL oQuery,cVersion := ""
+
+oQuery :=::Query("SELECT version() AS VER")
+
+IF oQuery != NIL
+   oQuery:Fetch()
+   IF !oQuery:Eof()
+      cVersion := oQuery:FieldGet(1)
    ENDIF
+   oQuery:Destroy()
+ENDIF
 
-   RETURN AllTrim( cVersion )
+RETURN AllTrim(cVersion)
 
 
 CREATE CLASS TDuckDBQuery
-   VAR      nError
-   VAR      lError
-   VAR      Dialect
-   VAR      lBof
-   VAR      lEof
-   VAR      nRecno
-   VAR      qry
-   VAR      aStruct
-   VAR      numcols
-   VAR      closed
-   VAR      db
-   VAR      query
-   VAR      aKeys
-   VAR      aTables
+   VAR nError
+   VAR lError
+   VAR Dialect
+   VAR lBof
+   VAR lEof
+   VAR nRecno
+   VAR qry
+   VAR aStruct
+   VAR numcols
+   VAR closed
+   VAR db
+   VAR query
+   VAR aKeys
+   VAR aTables
 
-   METHOD   New( nDB, cQuery, nDialect )
-   METHOD   Destroy()
-   METHOD   Close()            INLINE ::Destroy()
-   METHOD   Refresh()
-   METHOD   Fetch()
-   METHOD   Skip()             INLINE ::Fetch()
+   METHOD New(nDB,cQuery,nDialect)
 
-   METHOD   Bof()              INLINE ::lBof
-   METHOD   Eof()              INLINE ::lEof
-   METHOD   RecNo()            INLINE ::nRecno
+   METHOD Destroy()
 
-   METHOD   NetErr()           INLINE ::lError
-   METHOD   Error()            INLINE DuckDBError( ::db ) // Fix: usará o handle (::db) corretamente
-   METHOD   ErrorNo()          INLINE ::nError
+   METHOD Close() INLINE ::Destroy()
 
-   METHOD   FCount()           INLINE ::numcols
-   METHOD   Struct()
-   METHOD   FieldName( nField )
-   METHOD   FieldPos( cField )
-   METHOD   FieldLen( nField )
-   METHOD   FieldDec( nField )
-   METHOD   FieldType( nField )
-   METHOD   LastRec()
-   METHOD   FieldGet( nField )
-   METHOD   GetRow()
-   METHOD   GetBlankRow()
-   METHOD   Blank()            INLINE ::GetBlankRow()
-   METHOD   GetKeyField()
+   METHOD Refresh()
+
+   METHOD Fetch()
+
+   METHOD Skip() INLINE ::Fetch()
+
+
+   METHOD Bof() INLINE ::lBof
+
+   METHOD Eof() INLINE ::lEof
+
+   METHOD RecNo() INLINE ::nRecno
+
+
+   METHOD NetErr() INLINE ::lError
+
+   METHOD Error() INLINE DuckDBError(::db)  // Fix: usará o handle (::db) corretamente
+
+   METHOD ErrorNo() INLINE ::nError
+
+
+   METHOD FCount() INLINE ::numcols
+
+   METHOD Struct()
+
+   METHOD FieldName(nField)
+
+   METHOD FieldPos(cField)
+
+   METHOD FieldLen(nField)
+
+   METHOD FieldDec(nField)
+
+   METHOD FieldType(nField)
+
+   METHOD LastRec()
+
+   METHOD FieldGet(nField)
+
+   METHOD GetRow()
+
+   METHOD GetBlankRow()
+
+   METHOD Blank() INLINE ::GetBlankRow()
+
+   METHOD GetKeyField()
+
 ENDCLASS
 
-METHOD New( nDB, cQuery, nDialect ) CLASS TDuckDBQuery
-   ::db := nDb
-   ::query := cQuery // RemoveSpaces() removido
-   ::dialect := nDialect
-   ::closed := .T.
-   ::aKeys := NIL
-   ::Refresh()
-   RETURN Self
+METHOD New(nDB,cQuery,nDialect) CLASS TDuckDBQuery
+
+::db      := nDb
+::query   := cQuery   // RemoveSpaces() removido
+::dialect := nDialect
+::closed  := .T.
+::aKeys   := NIL
+::Refresh()
+RETURN Self
 
 METHOD LastRec() CLASS TDuckDBQuery
-   LOCAL nTotal := 0
-   LOCAL oQCount := TDuckDBQuery():New( ::db, "SELECT COUNT(*) FROM (" + ::query + ")", ::dialect )
-   IF oQCount != NIL
-      nTotal := NumericValue( oQCount:FieldGet( 1 ) )
-      oQCount:Destroy()
-   ENDIF
-   RETURN nTotal
+
+LOCAL nTotal  := 0
+LOCAL oQCount := TDuckDBQuery():New(::db,"SELECT COUNT(*) FROM ("+::query+")",::dialect)
+IF oQCount != NIL
+   nTotal := NumericValue(oQCount:FieldGet(1))
+   oQCount:Destroy()
+ENDIF
+RETURN nTotal
 
 METHOD Refresh() CLASS TDuckDBQuery
-   LOCAL qry, result, i, aTable := {}
 
-   IF ! ::closed
-      ::Destroy()
-   ENDIF
+LOCAL qry,result,i,aTable := {}
 
-   ::lBof := .T.
-   ::lEof := .F.
-   ::nRecno := 0
-   ::closed := .T.
-   ::numcols := 0
-   ::aStruct := {}
-   ::aTables := {}
-   ::qry := NIL
-   ::aKeys := NIL
-   ::nError := 0
+IF !::closed
+   ::Destroy()
+ENDIF
+
+::lBof    := .T.
+::lEof    := .F.
+::nRecno  := 0
+::closed  := .T.
+::numcols := 0
+::aStruct := {}
+::aTables := {}
+::qry     := NIL
+::aKeys   := NIL
+::nError  := 0
+::lError  := .F.
+
+result := .F.
+
+qry := DuckDBQuery(::db,::query)
+
+IF HB_ISARRAY(qry)
+   ::numcols := qry[4]
+   ::aStruct := StructConvert(qry[6],::db)
+
    ::lError := .F.
+   ::nError := 0
+   ::qry    := qry
+   ::closed := .F.
+   result   := .T.
 
-   result := .F.
+   FOR i := 1 TO Len(::aStruct)
+      IF hb_AScan(aTable,::aStruct[i ,  5],,,.T.) == 0
+         AAdd(aTable,::aStruct[i ,  5])
+      ENDIF
+   NEXT
+   ::aTables := aTable
+ELSE
+   ::lError := .T.
+   ::nError := qry
+   ::closed := .T.
+ENDIF
 
-   qry := DuckDBQuery( ::db, ::query )
-
-   IF HB_ISARRAY( qry )
-      ::numcols := qry[ 4 ]
-      ::aStruct := StructConvert( qry[ 6 ], ::db )
-
-      ::lError := .F.
-      ::nError := 0
-      ::qry := qry
-      ::closed := .F.
-      result := .T.
-
-      FOR i := 1 TO Len( ::aStruct )
-         IF hb_AScan( aTable, ::aStruct[ i ][ 5 ], , , .T. ) == 0
-            AAdd( aTable, ::aStruct[ i ][ 5 ] )
-         ENDIF
-      NEXT
-      ::aTables := aTable
-   ELSE
-      ::lError := .T.
-      ::nError := qry
-      ::closed := .T.
-   ENDIF
-
-   RETURN result
+RETURN result
 
 METHOD Destroy() CLASS TDuckDBQuery
-   LOCAL result := .T.
-   LOCAL n
 
-   IF ! ::lError .AND. ( n := DuckDBFree( ::qry ) ) < 0
-      ::lError := .T.
-      ::nError := n
-   ENDIF
+LOCAL result := .T.
+LOCAL n
 
-   ::closed := .T.
-   RETURN result
+IF !::lError .AND. (n := DuckDBFree(::qry)) < 0
+   ::lError := .T.
+   ::nError := n
+ENDIF
+
+::closed := .T.
+RETURN result
 
 METHOD Fetch() CLASS TDuckDBQuery
-   LOCAL result := .F.
-   LOCAL fetch_stat
 
-   IF ! ::lError .AND. ! ::lEof
-      IF ! ::Closed
-         fetch_stat := DuckDBFetch( ::qry )
-         ::nRecno++
+LOCAL result     := .F.
+LOCAL fetch_stat
 
-         IF fetch_stat == 0
-            ::lBof := .F.
-            result := .T.
-         ELSE
-            ::lEof := .T.
-         ENDIF
+IF !::lError .AND. !::lEof
+   IF !::Closed
+      fetch_stat := DuckDBFetch(::qry)
+      ::nRecno ++
+
+      IF fetch_stat == 0
+         ::lBof := .F.
+         result := .T.
+      ELSE
+         ::lEof := .T.
       ENDIF
    ENDIF
-   RETURN result
+ENDIF
+RETURN result
 
 METHOD Struct() CLASS TDuckDBQuery
-   LOCAL result := {}, i
-   IF ! ::lError
-      FOR i := 1 TO Len( ::aStruct )
-         AAdd( result, { ::aStruct[ i ][ 1 ], ::aStruct[ i ][ 2 ], ::aStruct[ i ][ 3 ], ::aStruct[ i ][ 4 ] } )
-      NEXT
-   ENDIF
-   RETURN result
 
-METHOD FieldPos( cField ) CLASS TDuckDBQuery
-   LOCAL result := 0
-   IF ! ::lError
-      result := AScan( ::aStruct, {| x | x[ 1 ] == RTrim( Upper( cField ) ) } )
-   ENDIF
-   RETURN result
+LOCAL result := {},i
+IF !::lError
+   FOR i := 1 TO Len(::aStruct)
+      AAdd(result,{::aStruct[i ,  1],::aStruct[i ,  2],::aStruct[i ,  3],::aStruct[i ,  4]})
+   NEXT
+ENDIF
+RETURN result
 
-METHOD FieldName( nField ) CLASS TDuckDBQuery
-   LOCAL result
-   IF ! ::lError .AND. nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 1 ]
-   ENDIF
-   RETURN result
+METHOD FieldPos(cField) CLASS TDuckDBQuery
 
-METHOD FieldType( nField ) CLASS TDuckDBQuery
-   LOCAL result
-   IF ! ::lError .AND. nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 2 ]
-   ENDIF
-   RETURN result
+LOCAL result := 0
+IF !::lError
+   result := AScan(::aStruct,{| x | x[1] == RTrim(Upper(cField))})
+ENDIF
+RETURN result
 
-METHOD FieldLen( nField ) CLASS TDuckDBQuery
-   LOCAL result
-   IF ! ::lError .AND. nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 3 ]
-   ENDIF
-   RETURN result
+METHOD FieldName(nField) CLASS TDuckDBQuery
 
-METHOD FieldDec( nField ) CLASS TDuckDBQuery
-   LOCAL result
-   IF ! ::lError .AND. nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 4 ]
-   ENDIF
-   RETURN result
+LOCAL result
+IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,1]
+ENDIF
+RETURN result
 
-METHOD FieldGet( nField ) CLASS TDuckDBQuery
-   LOCAL result, cType
+METHOD FieldType(nField) CLASS TDuckDBQuery
 
-   IF ! ::lError .AND. nField >= 1 .AND. nField <= Len( ::aStruct ) .AND. ! ::closed
-      result := DuckDBGetData( ::qry, nField )
-      cType := ::aStruct[ nField ][ 2 ]
+LOCAL result
+IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,2]
+ENDIF
+RETURN result
 
-      IF cType == "M"
-         IF result == NIL
-            result := ""
-         ENDIF
-      ELSEIF cType == "N"
-         IF result != NIL
-            result := NumericValue( result )
-         ELSE
-            result := 0
-         ENDIF
-      ELSEIF cType == "D"
-         IF result != NIL
-            IF ValType( result ) == "D"
-               result := result
-            ELSEIF ValType( result ) == "C"
-               result := StrDateClass( result )
-               IF Empty( result )
-                  result := CToD( "" )
-               ENDIF
-            ELSE
-               result := CToD( "" )
+METHOD FieldLen(nField) CLASS TDuckDBQuery
+
+LOCAL result
+IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,3]
+ENDIF
+RETURN result
+
+METHOD FieldDec(nField) CLASS TDuckDBQuery
+
+LOCAL result
+IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,4]
+ENDIF
+RETURN result
+
+METHOD FieldGet(nField) CLASS TDuckDBQuery
+
+LOCAL result,cType
+
+IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct) .AND. !::closed
+   result := DuckDBGetData(::qry,nField)
+   cType  := ::aStruct[nField,2]
+
+   IF cType == "M"
+      IF result == NIL
+         result := ""
+      ENDIF
+   ELSEIF cType == "N"
+      IF result != NIL
+         result := NumericValue(result)
+      ELSE
+         result := 0
+      ENDIF
+   ELSEIF cType == "D"
+      IF result != NIL
+         IF ValType(result) == "D"
+            result := result
+         ELSEIF ValType(result) == "C"
+            result := StrDateClass(result)
+            IF Empty(result)
+               result := CToD("")
             ENDIF
          ELSE
-            result := hb_SToD()
+            result := CToD("")
          ENDIF
-         
-      ELSEIF cType == "T"
-         IF result != NIL
-            result := UniversalDateTime( result ) // <-- INJEÇÃO: Conversor Universal de Data e Hora
+      ELSE
+         result := hb_SToD()
+      ENDIF
+
+   ELSEIF cType == "T"
+      IF result != NIL
+         result := UniversalDateTime(result)  // <-- INJEÇÃO: Conversor Universal de Data e Hora
+      ELSE
+         result := hb_SToT()
+      ENDIF
+   ELSEIF cType == "L"
+      IF result != NIL
+         IF HB_ISLOGICAL(result)
+            result := result
          ELSE
-            result := hb_SToT()
-         ENDIF   
-      ELSEIF cType == "L"
-         IF result != NIL
-            IF HB_ISLOGICAL( result )
-               result := result
-            ELSE
-               result := ( NumericValue( result ) == 1 .OR. ;
-                  ( HB_ISSTRING( result ) .AND. Upper( AllTrim( result ) ) == "T" ) )
-            ENDIF
-         ELSE
-            result := .F.
+            result := (NumericValue(result) == 1 .OR. ;
+             (HB_ISSTRING(result) .AND. Upper(AllTrim(result)) == "T"))
          ENDIF
+      ELSE
+         result := .F.
       ENDIF
    ENDIF
-   RETURN result
+ENDIF
+RETURN result
 
 METHOD Getrow() CLASS TDuckDBQuery
-   LOCAL result, aRow, i
-   IF ! ::lError .AND. ! ::closed
-      aRow := Array( ::numcols )
-      FOR i := 1 TO ::numcols
-         aRow[ i ] := ::FieldGet( i )
-      NEXT
-      result := TDuckDBRow():New( aRow, ::aStruct, ::db, ::dialect, ::aTables )
-   ENDIF
-   RETURN result
+
+LOCAL result,aRow,i
+IF !::lError .AND. !::closed
+   aRow := Array(::numcols)
+   FOR i := 1 TO ::numcols
+      aRow[ i ] :=::FieldGet(i)
+   NEXT
+   result := TDuckDBRow():New(aRow,::aStruct,::db,::dialect,::aTables)
+ENDIF
+RETURN result
 
 METHOD GetBlankRow() CLASS TDuckDBQuery
-   LOCAL result, aRow, i
-   IF ! ::lError
-      aRow := Array( ::numcols )
-      FOR i := 1 TO ::numcols
-         SWITCH ::aStruct[ i ][ 2 ]
-         CASE "C"
-         CASE "M"; aRow[ i ] := ""; EXIT
-         CASE "N"; aRow[ i ] := 0; EXIT
-         CASE "L"; aRow[ i ] := .F.; EXIT
-         CASE "D"; aRow[ i ] := hb_SToD(); EXIT
-         CASE "T"; aRow[ i ] := hb_SToT(); EXIT
-         ENDSWITCH
-      NEXT
-      result := TDuckDBRow():New( aRow, ::aStruct, ::db, ::dialect, ::aTables )
-   ENDIF
-   RETURN result
+
+LOCAL result,aRow,i
+IF !::lError
+   aRow := Array(::numcols)
+   FOR i := 1 TO ::numcols
+      SWITCH ::aStruct[i ,  2]
+   CASE "C"
+   CASE "M" 
+      aRow[ i ] := ""
+      EXIT
+   CASE "N" 
+      aRow[ i ] := 0
+      EXIT
+   CASE "L" 
+      aRow[ i ] := .F.
+      EXIT
+   CASE "D" 
+      aRow[ i ] := hb_SToD()
+      EXIT
+   CASE "T" 
+      aRow[ i ] := hb_SToT()
+      EXIT
+      ENDSWITCH
+   NEXT
+   result := TDuckDBRow():New(aRow,::aStruct,::db,::dialect,::aTables)
+ENDIF
+RETURN result
 
 METHOD GetKeyField() CLASS TDuckDBQuery
-   IF ::aKeys == NIL
-      ::aKeys := KeyField( ::aTables, ::db )
-   ENDIF
-   RETURN ::aKeys
+
+IF ::aKeys == NIL
+   ::aKeys := KeyField(::aTables,::db)
+ENDIF
+RETURN ::aKeys
 
 CREATE CLASS TDuckDBRow
-   VAR      aRow
-   VAR      aStruct
-   VAR      aChanged
-   VAR      aKeys
-   VAR      db
-   VAR      dialect
-   VAR      aTables
+   VAR aRow
+   VAR aStruct
+   VAR aChanged
+   VAR aKeys
+   VAR db
+   VAR dialect
+   VAR aTables
 
-   METHOD   New( row, struct, nDB, nDialect, aTable )
-   METHOD   Changed( nField )
-   METHOD   GetTables()        INLINE ::aTables
-   METHOD   FCount()           INLINE Len( ::aRow )
-   METHOD   FieldGet( nField )
-   METHOD   FieldPut( nField, Value )
-   METHOD   FieldName( nField )
-   METHOD   FieldPos( cField )
-   METHOD   FieldLen( nField )
-   METHOD   FieldDec( nField )
-   METHOD   FieldType( nField )
-   METHOD   GetKeyField()
+   METHOD New(row,struct,nDB,nDialect,aTable)
+
+   METHOD Changed(nField)
+
+   METHOD GetTables() INLINE ::aTables
+
+   METHOD FCount() INLINE Len(::aRow)
+
+   METHOD FieldGet(nField)
+
+   METHOD FieldPut(nField,Value)
+
+   METHOD FieldName(nField)
+
+   METHOD FieldPos(cField)
+
+   METHOD FieldLen(nField)
+
+   METHOD FieldDec(nField)
+
+   METHOD FieldType(nField)
+
+   METHOD GetKeyField()
+
 ENDCLASS
 
-METHOD new( row, struct, nDb, nDialect, aTable ) CLASS TDuckDBRow
-   ::aRow := row
-   ::aStruct := struct
-   ::db := nDB
-   ::dialect := nDialect
-   ::aTables := aTable
-   ::aChanged := Array( Len( row ) )
-   RETURN Self
+METHOD new(row,struct,nDb,nDialect,aTable) CLASS TDuckDBRow
 
-METHOD Changed( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. Len( ::aChanged ) >= nField .AND. ::aChanged != NIL
-      result := ( ::aChanged[ nField ] != NIL )
-   ENDIF
-   RETURN result
+::aRow     := row
+::aStruct  := struct
+::db       := nDB
+::dialect  := nDialect
+::aTables  := aTable
+::aChanged := Array(Len(row))
+RETURN Self
 
-METHOD FieldGet( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aRow )
-      result := ::aRow[ nField ]
-   ENDIF
-   RETURN result
+METHOD Changed(nField) CLASS TDuckDBRow
 
-METHOD FieldPut( nField, Value ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aRow )
-      ::aChanged[ nField ] := .T.
-      result := ::aRow[ nField ] := Value
-   ENDIF
-   RETURN result
+LOCAL result
+IF nField >= 1 .AND. Len(::aChanged) >= nField .AND. ::aChanged != NIL
+   result := (::aChanged[nField] != NIL)
+ENDIF
+RETURN result
 
-METHOD FieldName( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 1 ]
-   ENDIF
-   RETURN result
+METHOD FieldGet(nField) CLASS TDuckDBRow
 
-METHOD FieldPos( cField ) CLASS TDuckDBRow
-   RETURN AScan( ::aStruct, {| x | x[ 1 ] == RTrim( Upper( cField ) ) } )
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aRow)
+   result := ::aRow[nField]
+ENDIF
+RETURN result
 
-METHOD FieldType( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 2 ]
-   ENDIF
-   RETURN result
+METHOD FieldPut(nField,Value) CLASS TDuckDBRow
 
-METHOD FieldLen( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 3 ]
-   ENDIF
-   RETURN result
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aRow)
+   ::aChanged[ nField ] := .T.
+   result               := ::aRow[nField] := Value
+ENDIF
+RETURN result
 
-METHOD FieldDec( nField ) CLASS TDuckDBRow
-   LOCAL result
-   IF nField >= 1 .AND. nField <= Len( ::aStruct )
-      result := ::aStruct[ nField ][ 4 ]
-   ENDIF
-   RETURN result
+METHOD FieldName(nField) CLASS TDuckDBRow
+
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,1]
+ENDIF
+RETURN result
+
+METHOD FieldPos(cField) CLASS TDuckDBRow
+
+RETURN AScan(::aStruct,{| x | x[1] == RTrim(Upper(cField))})
+
+METHOD FieldType(nField) CLASS TDuckDBRow
+
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,2]
+ENDIF
+RETURN result
+
+METHOD FieldLen(nField) CLASS TDuckDBRow
+
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,3]
+ENDIF
+RETURN result
+
+METHOD FieldDec(nField) CLASS TDuckDBRow
+
+LOCAL result
+IF nField >= 1 .AND. nField <= Len(::aStruct)
+   result := ::aStruct[nField,4]
+ENDIF
+RETURN result
 
 METHOD GetKeyField() CLASS TDuckDBRow
-   IF ::aKeys == NIL
-      ::aKeys := KeyField( ::aTables, ::db )
+
+IF ::aKeys == NIL
+   ::aKeys := KeyField(::aTables,::db)
+ENDIF
+RETURN ::aKeys
+
+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function KeyField()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION KeyField(aTables,db)
+
+LOCAL cTable,cQuery,qry,aKeys := {}
+
+IF Len(aTables) == 1
+   cTable := aTables[1]
+   cQuery := "SELECT constraint_column_names FROM duckdb_constraints() WHERE table_name = "+DataToSql(cTable)+" AND constraint_type = 'PRIMARY KEY'"
+   qry    := DuckDBQuery(db,cQuery)
+
+   IF HB_ISARRAY(qry)
+      DO WHILE DuckDBFetch(qry) == 0
+         AAdd(aKeys,RTrim(DuckDBGetData(qry,1)))
+      ENDDO
+      DuckDBFree(qry)
    ENDIF
-   RETURN ::aKeys
+ENDIF
+RETURN aKeys
 
-STATIC FUNCTION KeyField( aTables, db )
-   LOCAL cTable, cQuery, qry, aKeys := {}
 
-   IF Len( aTables ) == 1
-      cTable := aTables[ 1 ]
-      cQuery := "SELECT constraint_column_names FROM duckdb_constraints() WHERE table_name = " + DataToSql( cTable ) + " AND constraint_type = 'PRIMARY KEY'"
-      qry := DuckDBQuery( db, cQuery )
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function DataToSql()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION DataToSql(xField)
 
-      IF HB_ISARRAY( qry )
-         DO WHILE DuckDBFetch( qry ) == 0
-            AAdd( aKeys, RTrim( DuckDBGetData( qry, 1 ) ) )
-         ENDDO
-         DuckDBFree( qry )
-      ENDIF
-   ENDIF
-   RETURN aKeys
+SWITCH ValType(xField)
+CASE "C" 
+CASE "M" 
+RETURN "'"+StrTran(xField,"'","''")+"'"
+CASE "D"
+IF Empty(xField) 
+   RETURN "NULL" 
+ENDIF
+RETURN "'"+StrZero(Year(xField),4)+"-"+StrZero(Month(xField),2)+"-"+StrZero(Day(xField),2)+"'"
+CASE "T"
+RETURN "CAST('"+Left(hb_TToS(xField),4)+"-"+;
+ SubStr(hb_TToS(xField),5,2)+"-"+;
+ SubStr(hb_TToS(xField),7,2)+" "+;
+ SubStr(hb_TToS(xField),9,2)+":"+;
+ SubStr(hb_TToS(xField),11,2)+":"+;
+ SubStr(hb_TToS(xField),13)+"' AS TIMESTAMP)"
+CASE "N" 
+RETURN Str(xField)
+CASE "L" 
+RETURN iif(xField,"TRUE","FALSE")
+ENDSWITCH
+RETURN "NULL"
 
-STATIC FUNCTION DataToSql( xField )
-   SWITCH ValType( xField )
-   CASE "C"; CASE "M"; RETURN "'" + StrTran( xField, "'", "''" ) + "'"
-   CASE "D"
-      IF Empty( xField ); RETURN "NULL"; ENDIF
-      RETURN "'" + StrZero( Year( xField ), 4 ) + "-" + StrZero( Month( xField ), 2 ) + "-" + StrZero( Day( xField ), 2 ) + "'"
-   CASE "T"
-      RETURN "CAST('" + Left( hb_TToS( xField ), 4 ) + "-" + ;
-         SubStr( hb_TToS( xField ), 5, 2 ) + "-" + ;
-         SubStr( hb_TToS( xField ), 7, 2 ) + " " + ;
-         SubStr( hb_TToS( xField ), 9, 2 ) + ":" + ;
-         SubStr( hb_TToS( xField ), 11, 2 ) + ":" + ;
-         SubStr( hb_TToS( xField ), 13 ) + "' AS TIMESTAMP)"
-   CASE "N"; RETURN Str( xField )
-   CASE "L"; RETURN iif( xField, "TRUE", "FALSE" )
-   ENDSWITCH
-   RETURN "NULL"
 
-STATIC FUNCTION StructConvert( aStru, db )
-   LOCAL aNew := {}
-   LOCAL cField
-   LOCAL cType
-   LOCAL nSize
-   LOCAL nDec
-   LOCAL cTable
-   LOCAL cDomain := ""
-   LOCAL i
-   
-   HB_SYMBOL_UNUSED( db )
-   
-   FOR i := 1 TO Len( aStru )
-      cField  := RTrim( aStru[ i ][ 7 ] )
-      DO CASE
-         CASE "BOOLEAN" $ Upper( aStru[ i ][ 2 ] )
-            cType := "L"
-         CASE "DATE" $ Upper( aStru[ i ][ 2 ] )
-            cType := "D"
-         CASE "TIMESTAMP" $ Upper( aStru[ i ][ 2 ] )
-            cType := "T"
-         CASE "BLOB" $ Upper( aStru[ i ][ 2 ] )
-            cType := "M"
-         CASE "TINYINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "SMALLINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "INTEGER" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "BIGINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "HUGEINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "UTINYINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "USMALLINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "UINTEGER" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "UBIGINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "UHUGEINT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "FLOAT" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "DOUBLE" $ Upper( aStru[ i ][ 2 ] ) .OR. ;
-              "DECIMAL" $ Upper( aStru[ i ][ 2 ] )
-            cType := "N"
-         OTHERWISE
-            cType := "C"
-      ENDCASE
-      nSize   := aStru[ i ][ 3 ]
-      nDec    := aStru[ i ][ 4 ]
-      cTable  := RTrim( aStru[ i ][ 5 ] )
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function StructConvert()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION StructConvert(aStru,db)
 
-      AAdd( aNew, { cField, cType, nSize, nDec, cTable, cDomain } )
-   NEXT
-   
-   RETURN aNew
+LOCAL aNew    := {}
+LOCAL cField
+LOCAL cType
+LOCAL nSize
+LOCAL nDec
+LOCAL cTable
+LOCAL cDomain := ""
+LOCAL i
+
+HB_SYMBOL_UNUSED(db)
+
+FOR i := 1 TO Len(aStru)
+   cField := RTrim(aStru[i,7])
+   DO CASE
+   CASE "BOOLEAN" $ Upper(aStru[i ,  2])
+      cType := "L"
+   CASE "DATE" $ Upper(aStru[i ,  2])
+      cType := "D"
+   CASE "TIMESTAMP" $ Upper(aStru[i ,  2])
+      cType := "T"
+   CASE "BLOB" $ Upper(aStru[i ,  2])
+      cType := "M"
+   CASE "TINYINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "SMALLINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "INTEGER" $ Upper(aStru[i ,  2]) .OR. ;
+       "BIGINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "HUGEINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "UTINYINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "USMALLINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "UINTEGER" $ Upper(aStru[i ,  2]) .OR. ;
+       "UBIGINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "UHUGEINT" $ Upper(aStru[i ,  2]) .OR. ;
+       "FLOAT" $ Upper(aStru[i ,  2]) .OR. ;
+       "DOUBLE" $ Upper(aStru[i ,  2]) .OR. ;
+       "DECIMAL" $ Upper(aStru[i ,  2])
+      cType := "N"
+   OTHERWISE
+      cType := "C"
+   ENDCASE
+   nSize  := aStru[i,3]
+   nDec   := aStru[i,4]
+   cTable := RTrim(aStru[i,5])
+
+   AAdd(aNew,{cField,cType,nSize,nDec,cTable,cDomain})
+NEXT
+
+RETURN aNew
 
 // FUNÇÃO ADICIONADA: Quoting seguro para identificadores para evitar SQL Injection ou quebra de nomes (com aspas ou espaços)
-STATIC FUNCTION QuoteIdent( cIdent )
-   IF Empty( cIdent )
-      RETURN '""'
-   ENDIF
-   RETURN '"' + StrTran( cIdent, '"', '""' ) + '"'
 
-STATIC FUNCTION NumericValue( xValue )
-   IF HB_ISNUMERIC( xValue )
-      RETURN xValue
-   ELSEIF HB_ISSTRING( xValue ) .AND. !Empty( xValue )
-      RETURN Val( xValue )
-   ENDIF
-   RETURN 0
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function QuoteIdent()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION QuoteIdent(cIdent)
 
-STATIC FUNCTION StrDateClass( xData )
-   LOCAL dRet := CToD( "" )
-   LOCAL cTemp, aParts
-   LOCAL i, nMes, cMes, cAno, cDia, nDia, nAno, cMesStr
-   LOCAL cCleanData
-   LOCAL aMonthsEN := { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" }
-   LOCAL aMonthsPT := { "JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ" }
+IF Empty(cIdent)
+   RETURN '""'
+ENDIF
+RETURN '"'+StrTran(cIdent,'"','""')+'"'
 
-   IF ValType( xData ) == "D"
-      RETURN xData
-   ENDIF
 
-   IF ValType( xData ) != "C" .OR. Empty( xData )
-      RETURN dRet
-   ENDIF
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function NumericValue()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION NumericValue(xValue)
 
-   cCleanData := Upper( AllTrim( xData ) )
-   IF cCleanData == "NULL" .OR. cCleanData == "NIL" .OR. ;
-      cCleanData == "<NULL>" .OR. cCleanData == "NUL" .OR. ;
-      cCleanData == "/  /" .OR. cCleanData == "-  -"
-      RETURN dRet
-   ENDIF
+IF HB_ISNUMERIC(xValue)
+   RETURN xValue
+ELSEIF HB_ISSTRING(xValue) .AND. !Empty(xValue)
+   RETURN Val(xValue)
+ENDIF
+RETURN 0
 
-   cTemp := AllTrim( xData )
-   cTemp := StrTran( cTemp, ",", " " )
-   cTemp := StrTran( cTemp, "-", " " )
-   DO WHILE "  " $ cTemp
-      cTemp := StrTran( cTemp, "  ", " " )
-   ENDDO
-   aParts := hb_ATokens( AllTrim( cTemp ), " " )
 
-   IF Len( aParts ) >= 4
-      FOR i := 1 TO Len( aParts )
-         cMesStr := Upper( Left( aParts[ i ], 3 ) )
-         nMes := AScan( aMonthsEN, cMesStr )
-         IF nMes == 0
-            nMes := AScan( aMonthsPT, cMesStr )
-         ENDIF
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function StrDateClass()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION StrDateClass(xData)
 
-         IF nMes > 0
-            cMes := StrZero( nMes, 2 )
-            IF i == 2 .AND. Len( aParts ) >= 5
-               cDia := StrZero( Val( aParts[ 3 ] ), 2 )
-               cAno := aParts[ 5 ]
-            ELSEIF i == 3
-               cDia := StrZero( Val( aParts[ 2 ] ), 2 )
-               cAno := aParts[ 4 ]
-               IF Len( cAno ) == 2
-                  nAno := Val( cAno )
-                  cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
-               ENDIF
-            ELSE
-               LOOP
-            ENDIF
+LOCAL dRet       := CToD("")
+LOCAL cTemp,aParts
+LOCAL i,nMes,cMes,cAno,cDia,nDia,nAno,cMesStr
+LOCAL cCleanData
+LOCAL aMonthsEN  := {"JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"}
+LOCAL aMonthsPT  := {"JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"}
 
-            nDia := Val( cDia )
-            nAno := Val( cAno )
-            IF nDia >= 1 .AND. nDia <= 31 .AND. nAno >= 1000 .AND. Len( cAno ) == 4
-               dRet := SToD( cAno + cMes + cDia )
-               IF !Empty( dRet )
-                  RETURN dRet
-               ENDIF
-            ENDIF
-         ENDIF
-      NEXT
-   ENDIF
+IF ValType(xData) == "D"
+   RETURN xData
+ENDIF
 
-   cTemp := AllTrim( xData )
-   cTemp := StrTran( cTemp, "-", "/" )
-   cTemp := StrTran( cTemp, ".", "/" )
-   aParts := hb_ATokens( cTemp, "/" )
-
-   IF Len( aParts ) == 3
-      IF Len( aParts[ 1 ] ) == 4
-         cAno := aParts[ 1 ]
-         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
-         cDia := StrZero( Val( aParts[ 3 ] ), 2 )
-      ELSE
-         cDia := StrZero( Val( aParts[ 1 ] ), 2 )
-         cMes := StrZero( Val( aParts[ 2 ] ), 2 )
-         cAno := aParts[ 3 ]
-         IF Len( cAno ) == 2
-            nAno := Val( cAno )
-            cAno := iif( nAno < 50, "20" + cAno, "19" + cAno )
-         ENDIF
-      ENDIF
-      IF cAno + cMes + cDia == "00000000"
-         RETURN CToD( "" )
-      ENDIF
-      dRet := SToD( cAno + cMes + cDia )
-      RETURN iif( Empty( dRet ), CToD( "" ), dRet )
-   ELSE
-      IF Len( cTemp ) == 8
-         IF Val( Left( cTemp, 4 ) ) > 1900
-            dRet := SToD( cTemp )
-         ELSE
-            dRet := SToD( Right( cTemp, 4 ) + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
-         ENDIF
-      ELSEIF Len( cTemp ) == 6
-         nAno := Val( Right( cTemp, 2 ) )
-         cAno := iif( nAno < 50, "20" + Right( cTemp, 2 ), "19" + Right( cTemp, 2 ) )
-         dRet := SToD( cAno + SubStr( cTemp, 3, 2 ) + Left( cTemp, 2 ) )
-      ELSE
-         dRet := CToD( xData )
-      ENDIF
-   ENDIF
+IF ValType(xData) != "C" .OR. Empty(xData)
    RETURN dRet
-   
-  // +--------------------------------------------------------------------
+ENDIF
+
+cCleanData := Upper(AllTrim(xData))
+IF cCleanData == "NULL" .OR. cCleanData == "NIL" .OR. ;
+           cCleanData == "<NULL>" .OR. cCleanData == "NUL" .OR. ;
+           cCleanData == "/  /" .OR. cCleanData == "-  -"
+   RETURN dRet
+ENDIF
+
+cTemp := AllTrim(xData)
+cTemp := StrTran(cTemp,","," ")
+cTemp := StrTran(cTemp,"-"," ")
+DO WHILE "  " $ cTemp
+   cTemp := StrTran(cTemp,"  "," ")
+ENDDO
+aParts := hb_ATokens(AllTrim(cTemp)," ")
+
+IF Len(aParts) >= 4
+   FOR i := 1 TO Len(aParts)
+      cMesStr := Upper(Left(aParts[i],3))
+      nMes    := AScan(aMonthsEN,cMesStr)
+      IF nMes == 0
+         nMes := AScan(aMonthsPT,cMesStr)
+      ENDIF
+
+      IF nMes > 0
+         cMes := StrZero(nMes,2)
+         IF i == 2 .AND. Len(aParts) >= 5
+            cDia := StrZero(Val(aParts[3]),2)
+            cAno := aParts[5]
+         ELSEIF i == 3
+            cDia := StrZero(Val(aParts[2]),2)
+            cAno := aParts[4]
+            IF Len(cAno) == 2
+               nAno := Val(cAno)
+               cAno := iif(nAno < 50,"20"+cAno,"19"+cAno)
+            ENDIF
+         ELSE
+            LOOP
+         ENDIF
+
+         nDia := Val(cDia)
+         nAno := Val(cAno)
+         IF nDia >= 1 .AND. nDia <= 31 .AND. nAno >= 1000 .AND. Len(cAno) == 4
+            dRet := SToD(cAno+cMes+cDia)
+            IF !Empty(dRet)
+               RETURN dRet
+            ENDIF
+         ENDIF
+      ENDIF
+   NEXT
+ENDIF
+
+cTemp  := AllTrim(xData)
+cTemp  := StrTran(cTemp,"-","/")
+cTemp  := StrTran(cTemp,".","/")
+aParts := hb_ATokens(cTemp,"/")
+
+IF Len(aParts) == 3
+   IF Len(aParts[1]) == 4
+      cAno := aParts[1]
+      cMes := StrZero(Val(aParts[2]),2)
+      cDia := StrZero(Val(aParts[3]),2)
+   ELSE
+      cDia := StrZero(Val(aParts[1]),2)
+      cMes := StrZero(Val(aParts[2]),2)
+      cAno := aParts[3]
+      IF Len(cAno) == 2
+         nAno := Val(cAno)
+         cAno := iif(nAno < 50,"20"+cAno,"19"+cAno)
+      ENDIF
+   ENDIF
+   IF cAno+cMes+cDia == "00000000"
+      RETURN CToD("")
+   ENDIF
+   dRet := SToD(cAno+cMes+cDia)
+   RETURN iif(Empty(dRet),CToD(""),dRet)
+ELSE
+   IF Len(cTemp) == 8
+      IF Val(Left(cTemp,4)) > 1900
+         dRet := SToD(cTemp)
+      ELSE
+         dRet := SToD(Right(cTemp,4)+SubStr(cTemp,3,2)+Left(cTemp,2))
+      ENDIF
+   ELSEIF Len(cTemp) == 6
+      nAno := Val(Right(cTemp,2))
+      cAno := iif(nAno < 50,"20"+Right(cTemp,2),"19"+Right(cTemp,2))
+      dRet := SToD(cAno+SubStr(cTemp,3,2)+Left(cTemp,2))
+   ELSE
+      dRet := CToD(xData)
+   ENDIF
+ENDIF
+RETURN dRet
+
+// +--------------------------------------------------------------------
 // +  Função: UniversalDateTime
 // +  Objetivo: Tratar datas complexas mantendo e corrigindo o horário
 // +  Retorna: Timestamp nativo (T) de alta precisão
 // +--------------------------------------------------------------------
-STATIC FUNCTION UniversalDateTime( xData )
 
-   LOCAL cStr, cDataLimpa, aParts, i, dData
-   LOCAL cTime := "00:00:00"
-   LOCAL nHour := 0, nMin := 0, nSec := 0
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+*+    Static Function UniversalDateTime()
+*+
+*+
+*+
+*+--------------------------------------------------------------------
+*+
+*+
+*+
+STATIC FUNCTION UniversalDateTime(xData)
 
-   // 1. Já é Data ou Timestamp? Trata a conversão direta
-   IF ValType( xData ) == "T"
-      RETURN xData
-   ELSEIF ValType( xData ) == "D"
-      RETURN hb_DateTime( Year(xData), Month(xData), Day(xData) )
+
+LOCAL cStr,cDataLimpa,aParts,i,dData
+LOCAL cTime := "00:00:00"
+LOCAL nHour := 0,nMin := 0,nSec := 0
+
+// 1. Já é Data ou Timestamp? Trata a conversão direta
+IF ValType(xData) == "T"
+   RETURN xData
+ELSEIF ValType(xData) == "D"
+   RETURN hb_DateTime(Year(xData),Month(xData),Day(xData))
+ENDIF
+
+// 2. Barreira para nulos ou variáveis não suportadas
+IF ValType(xData) <> "C" .OR. Empty(xData)
+   RETURN hb_DateTime(0,0,0)
+ENDIF
+
+// 3. Limpa espaços e conserta erros como ";" ou tags ISO "T"
+cStr := AllTrim(xData)
+cStr := StrTran(cStr,";",":")
+cStr := StrTran(cStr,"T"," ")
+
+aParts     := hb_ATokens(cStr," ")
+cDataLimpa := ""
+
+// 4. Caçador de Horários
+FOR i := 1 TO Len(aParts)
+   IF ":" $ aParts[i] .AND. Val(StrTran(aParts[i],":","")) >= 0
+      cTime := aParts[i]  // Isola apenas a hora encontrada
+   ELSE
+      cDataLimpa += aParts[i]+" "   // Reconstrói string base só da data
    ENDIF
+NEXT
 
-   // 2. Barreira para nulos ou variáveis não suportadas
-   IF ValType( xData ) <> "C" .OR. Empty( xData )
-      RETURN hb_DateTime( 0, 0, 0 )
-   ENDIF
+cDataLimpa := AllTrim(cDataLimpa)
 
-   // 3. Limpa espaços e conserta erros como ";" ou tags ISO "T"
-   cStr := AllTrim( xData )
-   cStr := StrTran( cStr, ";", ":" )
-   cStr := StrTran( cStr, "T", " " )
+// 5. Utiliza o motor otimizado para extrair o calendário válido
+dData := StrDateClass(cDataLimpa)
 
-   aParts := hb_ATokens( cStr, " " )
-   cDataLimpa := ""
+// Fallback se a rotina retornar vazio, checa direto via Harbour CToD
+IF Empty(dData) .AND. !Empty(CToD(cDataLimpa))
+   dData := CToD(cDataLimpa)
+ENDIF
 
-   // 4. Caçador de Horários
-   FOR i := 1 TO Len( aParts )
-      IF ":" $ aParts[i] .AND. Val( StrTran( aParts[i], ":", "" ) ) >= 0
-         cTime := aParts[i] // Isola apenas a hora encontrada
-      ELSE
-         cDataLimpa += aParts[i] + " " // Reconstrói string base só da data
-      ENDIF
-   NEXT
+IF Empty(dData)
+   RETURN hb_DateTime(0,0,0)
+ENDIF
 
-   cDataLimpa := AllTrim( cDataLimpa )
-   
-   // 5. Utiliza o motor otimizado para extrair o calendário válido
-   dData := StrDateClass( cDataLimpa )
+// 6. Separa e converte as partes do Horário
+aParts := hb_ATokens(cTime,":")
+IF Len(aParts) >= 1 
+   nHour := Val(aParts[1])
+ENDIF
+IF Len(aParts) >= 2 
+   nMin := Val(aParts[2])
+ENDIF
+IF Len(aParts) >= 3 
+   nSec := Val(aParts[3])
+ENDIF
 
-   // Fallback se a rotina retornar vazio, checa direto via Harbour CToD
-   IF Empty( dData ) .AND. !Empty( CToD( cDataLimpa ) )
-      dData := CToD( cDataLimpa )
-   ENDIF
+// 7. Retorna o Objeto Timestamp Oficial
+RETURN hb_DateTime(Year(dData),Month(dData),Day(dData),nHour,nMin,nSec)
 
-   IF Empty( dData )
-      RETURN hb_DateTime( 0, 0, 0 )
-   ENDIF
 
-   // 6. Separa e converte as partes do Horário
-   aParts := hb_ATokens( cTime, ":" )
-   IF Len( aParts ) >= 1; nHour := Val( aParts[1] ); ENDIF
-   IF Len( aParts ) >= 2; nMin  := Val( aParts[2] ); ENDIF
-   IF Len( aParts ) >= 3; nSec  := Val( aParts[3] ); ENDIF
-
-   // 7. Retorna o Objeto Timestamp Oficial
-   RETURN hb_DateTime( Year( dData ), Month( dData ), Day( dData ), nHour, nMin, nSec ) 
-   
+*+ EOF: DuckDBClass.prg
+*+
