@@ -887,26 +887,19 @@ ENDIF
 RETURN result
 
 
+
 *+--------------------------------------------------------------------
-*+
-*+
-*+
-*+    Method Destroy()
-*+
-*+
-*+
+*+    Method Destroy() em TDuckDBQuery (DuckDBClass.prg)
 *+--------------------------------------------------------------------
-*+
-*+
-*+
 METHOD Destroy() CLASS TDuckDBQuery
 
 LOCAL result := .T.
-LOCAL n
+//LOCAL n
 
-IF !::lError .AND. (n := DuckDBFree(::qry)) < 0
-   ::lError := .T.
-   ::nError := n
+IF !::lError .AND. ::qry != NIL
+   // Correção: Chamando explicitamente a função C atualizada no duckdb.c
+   DUCKDBFREERESULT(::qry)
+   ::qry := NIL
 ENDIF
 
 ::closed := .T.

@@ -516,47 +516,49 @@ FOR i := 1 TO nCols
    nDec  := iif(aStru[i,4] == NIL,0,aStru[i,4])
 
    SWITCH nType
+
 CASE "BOOLEAN" 
-   cType := HB_FT_LOGICAL
-   nSize := 1
-   nDec  := 0
-   EXIT
-CASE "VARCHAR" 
-CASE "CHAR" 
-   cType := HB_FT_STRING
-   EXIT
-CASE "INTEGER" 
-CASE "TINYINT" 
-CASE "SMALLINT" 
-CASE "UTINYINT" 
-CASE "USMALLINT" 
-   cType := HB_FT_INTEGER
-   EXIT
-CASE "BIGINT" 
-CASE "HUGEINT" 
-CASE "UINTEGER" 
-CASE "UBIGINT" 
-   cType := HB_FT_LONG
-   EXIT
-CASE "DOUBLE" 
-CASE "FLOAT" 
-CASE "DECIMAL" 
-CASE "NUMERIC" 
-   cType := HB_FT_DOUBLE
-   EXIT
-CASE "DATE" 
-   cType := HB_FT_DATE
-   nSize := 8
-   nDec  := 0
-   EXIT
-CASE "TIMESTAMP" 
-CASE "TIMESTAMP_S" 
-CASE "TIMESTAMP_MS" 
-CASE "TIMESTAMP_NS"
-   cType := HB_FT_TIMESTAMP
-   nSize := 20
-   nDec  := 0
-   EXIT
+         cType := HB_FT_LOGICAL
+         nSize := 1
+         nDec  := 0
+         EXIT
+      CASE "VARCHAR" 
+      CASE "CHAR" 
+         cType := HB_FT_STRING
+         EXIT
+      CASE "INTEGER" 
+      CASE "TINYINT" 
+      CASE "SMALLINT" 
+      CASE "UTINYINT" 
+      CASE "USMALLINT" 
+         cType := HB_FT_INTEGER
+         EXIT
+      CASE "BIGINT" 
+      CASE "HUGEINT" 
+      CASE "UINTEGER" 
+      CASE "UBIGINT" 
+         cType := HB_FT_LONG
+         EXIT
+      CASE "DOUBLE" 
+      CASE "FLOAT" 
+      CASE "DECIMAL"     // <-- Garantido como Numérico de Dupla Precisão
+      CASE "NUMERIC" 
+         cType := HB_FT_DOUBLE
+         EXIT
+      CASE "DATE" 
+         cType := HB_FT_DATE
+         nSize := 8
+         nDec  := 0
+         EXIT
+      CASE "TIMESTAMP" 
+      CASE "TIMESTAMP_S" 
+      CASE "TIMESTAMP_MS" 
+      CASE "TIMESTAMP_NS"
+         cType := HB_FT_TIMESTAMP
+         nSize := 20
+         nDec  := 0
+         EXIT
+
 CASE "TIME" 
    cType := HB_FT_STRING
    nSize := 15
@@ -710,7 +712,6 @@ aWAData[ AREA_CACHE ]  := {}
 aWAData[ AREA_ROWBUF ] := NIL
 RETURN UR_SUPER_CLOSE(nWA)
 
-
 *+--------------------------------------------------------------------
 *+
 *+
@@ -732,7 +733,6 @@ ELSEIF aWAData[AREA_RECNO] > 0 .AND. aWAData[AREA_RECNO] <= Len(aWAData[AREA_CAC
    xValue := aWAData[AREA_CACHE,aWAData[AREA_RECNO],nField]
 ENDIF
 RETURN SUCCESS
-
 
 *+--------------------------------------------------------------------
 *+

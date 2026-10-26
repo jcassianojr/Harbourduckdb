@@ -1,522 +1,313 @@
-/*
- * DuckDB DBMS low-level (client API) interface code for Harbour
- * Adapted for Harbour Project (Mirror of firebird.c)
- * Updated to DuckDB 1.5.6+ Chunk/Vector API
- */
-
 #include "hbapi.h"
-#include "hbapierr.h"
 #include "hbapiitm.h"
+#include "hbapierr.h"
 #include "duckdb.h"
-#include <string.h>
 
-/* Estruturas de controle de Conexão e Resultados (Agora com Cache de Chunks) */
-
-typedef struct
+/* Helper matemático para calcular Data Juliana (Padrão nativo do Harbour/Clipper) */
+static long duckdb_to_julian( int year, int month, int day )
 {
-   duckdb_database db;
-   duckdb_connection conn;
-   char * last_error;
-} HB_DUCKDB;
+    int a = ( 14 - month ) / 12;
+    int y = year + 4800 - a;
+    int m = month + 12 * a - 3;
+    return day + ( 153 * m + 2 ) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045;
+}
 
-typedef struct
-{
-   duckdb_result result;
-   idx_t current_row;
-   idx_t total_rows;
-   idx_t total_cols;
-   
-   /* Novas propriedades para o cache da Chunk API */
-   duckdb_data_chunk current_chunk;
-   idx_t current_chunk_idx;
-   idx_t chunk_start_row;
-   idx_t chunk_end_row;
+/* ESTRUTURA COM CACHE DE OTIMIZAÇÃO (ITEM 2) */
+typedef struct {
+    duckdb_result result;
+    duckdb_data_chunk *chunks;
+    idx_t chunk_count;
+    idx_t chunk_capacity;
+    idx_t total_rows;
+    idx_t column_count;
+    
+    /* Variáveis de cache para otimizar leitura sequencial (O(1) vs O(N)) */
+    idx_t last_chunk_idx;
+    idx_t last_chunk_row_start;
 } HB_DUCKDB_RESULT;
 
-/* Garbage Collector Handlers para a Conexão */
+/* =========================================================================
+   ABERTURA E CONEXÃO
+========================================================================= */
 
-static HB_GARBAGE_FUNC( HB_DUCKDB_release )
+HB_FUNC( DUCKDBOPEN )
 {
-   HB_DUCKDB ** pp = ( HB_DUCKDB ** ) Cargo;
-
-   if( pp && *pp )
-   {
-      HB_DUCKDB * p = *pp;
-
-      if( p->conn )
-      {
-         duckdb_disconnect( &( p->conn ) );
-         p->conn = NULL;
-      }
-      if( p->db )
-      {
-         duckdb_close( &( p->db ) );
-         p->db = NULL;
-      }
-      if( p->last_error )
-      {
-         hb_xfree( p->last_error );
-         p->last_error = NULL;
-      }
-
-      hb_xfree( p );
-      *pp = NULL;
-   }
-}
-
-static const HB_GC_FUNCS s_gcHB_DUCKDBFuncs =
-{
-   HB_DUCKDB_release,
-   hb_gcDummyMark
-};
-
-static HB_DUCKDB * hb_duckdb_par( int iParam )
-{
-   HB_DUCKDB ** pp = ( HB_DUCKDB ** ) hb_parptrGC( &s_gcHB_DUCKDBFuncs, iParam );
-   return ( pp && *pp ) ? *pp : NULL;
-}
-
-/* API Wrappers */
-
-HB_FUNC( DUCKDBCONNECT )
-{
-   const char * db_path = hb_parcx( 1 );
-   duckdb_database db;
-   duckdb_connection conn;
-   char * err_msg = NULL;
-   HB_DUCKDB * p;
-   HB_DUCKDB ** pp;
-
-   // Se o caminho for vazio ou omitido, abre banco em memória
-   if( hb_parclen( 1 ) == 0 )
-      db_path = NULL;
-
-   if( duckdb_open_ext( db_path, &db, NULL, &err_msg ) == DuckDBError )
-   {
-      if( err_msg )
-      {
-         hb_retc( err_msg );
-         duckdb_free( err_msg );
-      }
-      else
-      {
-         hb_retc( "Erro desconhecido ao abrir banco DuckDB." );
-      }
-      return;
-   }
-
-   if( duckdb_connect( db, &conn ) == DuckDBError )
-   {
-      duckdb_close( &db );
-      hb_retc( "Erro ao estabelecer conexao com o banco DuckDB." );
-      return;
-   }
-
-   p = ( HB_DUCKDB * ) hb_xgrab( sizeof( HB_DUCKDB ) );
-   p->db = db;
-   p->conn = conn;
-   p->last_error = NULL;
-
-   pp = ( HB_DUCKDB ** ) hb_gcAllocate( sizeof( HB_DUCKDB * ), &s_gcHB_DUCKDBFuncs );
-   *pp = p;
-
-   hb_retptrGC( pp );
+    const char *db_path = hb_parc(1);
+    duckdb_database *db = (duckdb_database *) hb_xgrab( sizeof(duckdb_database) );
+    
+    if( duckdb_open( db_path, db ) == DuckDBSuccess ) {
+        hb_retptr( (void *) db );
+    } else {
+        hb_xfree( db );
+        hb_retptr( NULL );
+    }
 }
 
 HB_FUNC( DUCKDBCLOSE )
 {
-   HB_DUCKDB * p = hb_duckdb_par( 1 );
-
-   if( p )
-   {
-      if( p->conn )
-      {
-         duckdb_disconnect( &( p->conn ) );
-         p->conn = NULL;
-      }
-      if( p->db )
-      {
-         duckdb_close( &( p->db ) );
-         p->db = NULL;
-      }
-      hb_retnl( 1 );
-   }
-   else
-   {
-      hb_retnl( 0 );
-   }
+    duckdb_database *db = (duckdb_database *) hb_parptr(1);
+    if( db ) {
+        duckdb_close( db );
+        hb_xfree( db );
+    }
 }
 
-HB_FUNC( DUCKDBERROR )
+HB_FUNC( DUCKDBCONNECT )
 {
-   HB_DUCKDB * p = hb_duckdb_par( 1 );
-
-   if( p && p->last_error )
-   {
-      hb_retc( p->last_error );
-   }
-   else
-   {
-      hb_retc( "" );
-   }
+    duckdb_database *db = (duckdb_database *) hb_parptr(1);
+    duckdb_connection *conn = (duckdb_connection *) hb_xgrab( sizeof(duckdb_connection) );
+    
+    if( db && duckdb_connect( *db, conn ) == DuckDBSuccess ) {
+        hb_retptr( (void *) conn );
+    } else {
+        hb_xfree( conn );
+        hb_retptr( NULL );
+    }
 }
 
-HB_FUNC( DUCKDBEXECUTE )
+HB_FUNC( DUCKDBDISCONNECT )
 {
-   HB_DUCKDB * p = hb_duckdb_par( 1 );
-   const char * sql = hb_parcx( 2 );
-
-   if( p && p->conn && sql )
-   {
-      duckdb_result res;
-
-      if( duckdb_query( p->conn, sql, &res ) == DuckDBError )
-      {
-         if( p->last_error )
-         {
-            hb_xfree( p->last_error );
-            p->last_error = NULL;
-         }
-
-         const char * err = duckdb_result_error( &res );
-         if( err )
-         {
-            p->last_error = hb_strdup( err );
-         }
-
-         duckdb_destroy_result( &res );
-         hb_retnl( -1 );
-      }
-      else
-      {
-         duckdb_destroy_result( &res );
-         hb_retnl( 1 );
-      }
-   }
-   else
-   {
-      hb_retnl( -1 );
-   }
+    duckdb_connection *conn = (duckdb_connection *) hb_parptr(1);
+    if( conn ) {
+        duckdb_disconnect( conn );
+        hb_xfree( conn );
+    }
 }
+
+/* =========================================================================
+   EXECUÇÃO DE QUERY
+========================================================================= */
 
 HB_FUNC( DUCKDBQUERY )
 {
-   HB_DUCKDB * p = hb_duckdb_par( 1 );
-   const char * sql = hb_parcx( 2 );
+    duckdb_connection *conn = (duckdb_connection *) hb_parptr(1);
+    const char *query = hb_parc(2);
 
-   if( p && p->conn && sql )
-   {
-      HB_DUCKDB_RESULT * pRes = ( HB_DUCKDB_RESULT * ) hb_xgrab( sizeof( HB_DUCKDB_RESULT ) );
+    if( conn && query ) {
+        HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_xgrab( sizeof( HB_DUCKDB_RESULT ) );
+        duckdb_state state = duckdb_query( *conn, query, &(res->result) );
 
-      if( duckdb_query( p->conn, sql, &( pRes->result ) ) == DuckDBError )
-      {
-         if( p->last_error )
-         {
-            hb_xfree( p->last_error );
-            p->last_error = NULL;
-         }
+        if( state == DuckDBSuccess ) {
+            res->chunk_count = 0;
+            res->chunk_capacity = 10;
+            res->chunks = (duckdb_data_chunk *) hb_xgrab( res->chunk_capacity * sizeof(duckdb_data_chunk) );
+            res->total_rows = 0;
+            res->column_count = duckdb_column_count( &(res->result) );
+            
+            /* Inicializa o cache para a leitura do RDD/Classe */
+            res->last_chunk_idx = 0;
+            res->last_chunk_row_start = 0;
 
-         const char * err = duckdb_result_error( &( pRes->result ) );
-         if( err )
-         {
-            p->last_error = hb_strdup( err );
-         }
+            /* Extrai todos os chunks via API V2 */
+            while( 1 ) {
+                duckdb_data_chunk chunk = duckdb_fetch_chunk( res->result );
+                if( !chunk ) break;
 
-         duckdb_destroy_result( &( pRes->result ) );
-         hb_xfree( pRes );
-         hb_retnl( -1 );
-         return;
-      }
+                idx_t size = duckdb_data_chunk_get_size( chunk );
+                if( size == 0 ) {
+                    duckdb_destroy_data_chunk( &chunk );
+                    break;
+                }
 
-      pRes->current_row = 0;
-      pRes->total_cols  = duckdb_column_count( &( pRes->result ) );
-
-      /* Conta as linhas somando o tamanho dos Chunks */
-      pRes->total_rows = 0;
-      idx_t chunk_count = duckdb_result_chunk_count( pRes->result );
-      idx_t i;
-      
-      for( i = 0; i < chunk_count; i++ )
-      {
-         duckdb_data_chunk temp_chunk = duckdb_result_get_chunk( pRes->result, i );
-         pRes->total_rows += duckdb_data_chunk_get_size( temp_chunk );
-         duckdb_destroy_data_chunk( &temp_chunk );
-      }
-      
-      pRes->current_chunk = NULL;
-      pRes->current_chunk_idx = 0;
-      pRes->chunk_start_row = 0;
-      pRes->chunk_end_row = 0;
-
-      PHB_ITEM aStruct  = hb_itemArrayNew( pRes->total_cols );
-      PHB_ITEM aColTemp = hb_itemNew( NULL );
-
-      for( i = 0; i < pRes->total_cols; i++ )
-      {
-         const char * col_name = duckdb_column_name( &( pRes->result ), i );
-         duckdb_type col_type  = duckdb_column_type( &( pRes->result ), i );
-
-         const char * type_str = "VARCHAR";
-         long nSize = 255;
-         long nDec  = 0;
-
-         switch( col_type )
-         {
-            case DUCKDB_TYPE_BOOLEAN:
-               type_str = "BOOLEAN";
-               nSize = 1;
-               break;
-            case DUCKDB_TYPE_TINYINT:
-            case DUCKDB_TYPE_SMALLINT:
-               type_str = "SMALLINT";
-               nSize = 5;
-               break;
-            case DUCKDB_TYPE_INTEGER:
-               type_str = "INTEGER";
-               nSize = 9;
-               break;
-            case DUCKDB_TYPE_BIGINT:
-            case DUCKDB_TYPE_HUGEINT:
-               type_str = "BIGINT";
-               nSize = 19;
-               break;
-            case DUCKDB_TYPE_FLOAT:
-            case DUCKDB_TYPE_DOUBLE:
-            case DUCKDB_TYPE_DECIMAL:
-               type_str = "DOUBLE";
-               nSize = 15;
-               nDec = 4;
-               break;
-            case DUCKDB_TYPE_DATE:
-               type_str = "DATE";
-               nSize = 8;
-               break;
-            case DUCKDB_TYPE_TIME:
-               type_str = "TIME";
-               nSize = 10;
-               break;
-            case DUCKDB_TYPE_TIMESTAMP:
-               type_str = "TIMESTAMP";
-               nSize = 19;
-               break;
-            case DUCKDB_TYPE_BLOB:
-               type_str = "BLOB";
-               nSize = 10;
-               break;
-            default:
-               type_str = "VARCHAR";
-               nSize = 255;
-               break;
-         }
-
-         hb_arrayNew( aColTemp, 7 );
-         hb_arraySetC(  aColTemp, 1, col_name ? col_name : "" );
-         hb_arraySetC(  aColTemp, 2, type_str );
-         hb_arraySetNL( aColTemp, 3, nSize );
-         hb_arraySetNL( aColTemp, 4, nDec );
-         hb_arraySetC(  aColTemp, 5, "" );
-         hb_arraySetNL( aColTemp, 6, 0 );
-         hb_arraySetC(  aColTemp, 7, col_name ? col_name : "" );
-
-         hb_arraySetForward( aStruct, ( HB_SIZE ) ( i + 1 ), aColTemp );
-      }
-
-      hb_itemRelease( aColTemp );
-
-      PHB_ITEM qry_handle = hb_itemArrayNew( 6 );
-      hb_arraySetPtr( qry_handle, 1, ( void * ) pRes );
-      hb_arraySetNL(  qry_handle, 2, 0 );
-      hb_arraySetNLL( qry_handle, 3, ( HB_MAXINT ) pRes->total_rows );
-      hb_arraySetNLL( qry_handle, 4, ( HB_MAXINT ) pRes->total_cols );
-      hb_arraySetNI(  qry_handle, 5, 3 );
-      hb_arraySetForward( qry_handle, 6, aStruct );
-
-      hb_itemReturnRelease( qry_handle );
-      hb_itemRelease( aStruct );
-   }
-   else
-   {
-      hb_retnl( -1 );
-   }
+                if( res->chunk_count >= res->chunk_capacity ) {
+                    res->chunk_capacity *= 2;
+                    res->chunks = (duckdb_data_chunk *) hb_xrealloc( res->chunks, res->chunk_capacity * sizeof(duckdb_data_chunk) );
+                }
+                res->chunks[res->chunk_count++] = chunk;
+                res->total_rows += size;
+            }
+            hb_retptr( (void *) res );
+        } else {
+            /* Query falhou */
+            duckdb_destroy_result( &(res->result) );
+            hb_xfree( res );
+            hb_retptr( NULL );
+        }
+    } else {
+        hb_retptr( NULL );
+    }
 }
 
-HB_FUNC( DUCKDBFETCH )
+/* =========================================================================
+   INFORMAÇÕES DE RESULTADO
+========================================================================= */
+
+HB_FUNC( DUCKDBROWCOUNT )
 {
-   PHB_ITEM aParam = hb_param( 1, HB_IT_ARRAY );
-
-   if( aParam )
-   {
-      HB_DUCKDB_RESULT * pRes = ( HB_DUCKDB_RESULT * ) hb_itemGetPtr( hb_itemArrayGet( aParam, 1 ) );
-      long nRow = hb_itemGetNL( hb_itemArrayGet( aParam, 2 ) );
-
-      if( pRes )
-      {
-         nRow++;
-         if( ( idx_t ) nRow <= pRes->total_rows && pRes->total_rows > 0 )
-         {
-            hb_arraySetNL( aParam, 2, nRow );
-            pRes->current_row = ( idx_t ) nRow;
-            hb_retnl( 0 );
-            return;
-         }
-      }
-   }
-   hb_retnl( -1 );
+    HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_parptr(1);
+    if( res ) {
+        hb_retnll( res->total_rows );
+    } else {
+        hb_retnll( 0 );
+    }
 }
+
+HB_FUNC( DUCKDBCOLCOUNT )
+{
+    HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_parptr(1);
+    if( res ) {
+        hb_retnll( res->column_count );
+    } else {
+        hb_retnll( 0 );
+    }
+}
+
+/* =========================================================================
+   LIBERAÇÃO DE MEMÓRIA
+========================================================================= */
+
+HB_FUNC( DUCKDBFREERESULT )
+{
+    HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_parptr(1);
+    if( res ) {
+        /* Destrói todos os chunks alocados na memória */
+        for( idx_t i = 0; i < res->chunk_count; i++ ) {
+            duckdb_destroy_data_chunk( &(res->chunks[i]) );
+        }
+        
+        /* Libera a matriz de ponteiros e o result base */
+        if( res->chunks ) {
+            hb_xfree( res->chunks );
+        }
+        duckdb_destroy_result( &(res->result) );
+        
+        /* Libera a estrutura principal alocada no Harbour */
+        hb_xfree( res );
+    }
+    hb_ret();
+}
+
+/* =========================================================================
+   EXTRAÇÃO DE DADOS POR CÉLULA COM CACHE
+========================================================================= */
 
 HB_FUNC( DUCKDBGETDATA )
 {
-   PHB_ITEM aParam = hb_param( 1, HB_IT_ARRAY );
-   int col_idx = hb_parni( 2 ) - 1;
+    HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_parptr(1);
+    
+    /* Subtrai 1 pois o Harbour manda índice Base-1, mas em C é Base-0 */
+    idx_t target_row = (idx_t) hb_parnl(2) - 1; 
+    idx_t col = (idx_t) hb_parnl(3) - 1; 
 
-   if( aParam && col_idx >= 0 )
-   {
-      HB_DUCKDB_RESULT * pRes = ( HB_DUCKDB_RESULT * ) hb_itemGetPtr( hb_itemArrayGet( aParam, 1 ) );
-      long nRow = hb_itemGetNL( hb_itemArrayGet( aParam, 2 ) );
+    if( !res || target_row >= res->total_rows || col >= res->column_count ) {
+        hb_ret();
+        return;
+    }
 
-      if( pRes && nRow > 0 && ( idx_t ) nRow <= pRes->total_rows && col_idx < ( int ) pRes->total_cols )
-      {
-         idx_t target_row = ( idx_t ) ( nRow - 1 );
+    idx_t current_row = 0;
+    idx_t start_chunk = 0;
+    duckdb_data_chunk target_chunk = NULL;
+    idx_t row_in_chunk = 0;
 
-         if ( pRes->current_chunk == NULL || target_row < pRes->chunk_start_row || target_row >= pRes->chunk_end_row )
-         {
-            if ( pRes->current_chunk )
-            {
-               duckdb_destroy_data_chunk( &(pRes->current_chunk) );
-               pRes->current_chunk = NULL;
-            }
+    /* APLICAÇÃO DO CACHE: Lê sequencialmente muito mais rápido */
+    if( target_row >= res->last_chunk_row_start ) {
+        start_chunk = res->last_chunk_idx;
+        current_row = res->last_chunk_row_start;
+    }
+
+    for( idx_t i = start_chunk; i < res->chunk_count; i++ ) {
+        idx_t chunk_size = duckdb_data_chunk_get_size( res->chunks[i] );
+        if( target_row < current_row + chunk_size ) {
+            target_chunk = res->chunks[i];
+            row_in_chunk = target_row - current_row;
             
-            idx_t chunk_count = duckdb_result_chunk_count( pRes->result );
-            idx_t current_row = 0;
-            idx_t i;
+            /* Atualiza o cache para a próxima chamada */
+            res->last_chunk_idx = i;
+            res->last_chunk_row_start = current_row;
+            break;
+        }
+        current_row += chunk_size;
+    }
+
+    if( !target_chunk ) {
+        hb_ret(); /* Segurança, nunca deve chegar aqui se o target_row for válido */
+        return;
+    }
+
+    /* Extração do vetor e validação de Nulos */
+    duckdb_vector vector = duckdb_data_chunk_get_vector( target_chunk, col );
+    void *data = duckdb_vector_get_data( vector );
+    uint64_t *validity = duckdb_vector_get_validity( vector );
+
+    if( !duckdb_validity_row_is_valid( validity, row_in_chunk ) ) {
+        hb_ret(); /* Retorna NIL em Harbour para banco de dados NULL */
+        return;
+    }
+
+    /* Identificação de Tipos */
+    duckdb_logical_type type = duckdb_vector_get_column_type( vector );
+    duckdb_type type_id = duckdb_get_type_id( type );
+    duckdb_destroy_logical_type( &type );
+
+    /* CONVERSÃO NATIVA DE TIPOS */
+    switch( type_id ) {
+        case DUCKDB_TYPE_BOOLEAN:
+            hb_retl( ((bool *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_TINYINT:
+            hb_retni( ((int8_t *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_SMALLINT:
+            hb_retni( ((int16_t *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_INTEGER:
+            hb_retni( ((int32_t *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_BIGINT:
+            hb_retnll( ((int64_t *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_FLOAT:
+            hb_retnd( (double) ((float *)data)[row_in_chunk] );
+            break;
+        case DUCKDB_TYPE_DOUBLE:
+            hb_retnd( ((double *)data)[row_in_chunk] );
+            break;
+
+        case DUCKDB_TYPE_DECIMAL:
+        {
+            duckdb_decimal dec_val = ((duckdb_decimal *)data)[row_in_chunk];
+            hb_retnd( duckdb_decimal_to_double( dec_val ) );
+            break;
+        }
+
+        case DUCKDB_TYPE_DATE:
+        {
+            duckdb_date date_val = ((duckdb_date *)data)[row_in_chunk];
+            duckdb_date_struct d = duckdb_from_date( date_val );
+            hb_retd( d.year, d.month, d.day );
+            break;
+        }
+
+        case DUCKDB_TYPE_TIMESTAMP:
+        {
+            duckdb_timestamp ts_val = ((duckdb_timestamp *)data)[row_in_chunk];
+            duckdb_timestamp_struct ts = duckdb_from_timestamp( ts_val );
             
-            for ( i = 0; i < chunk_count; i++ )
-            {
-               duckdb_data_chunk chunk = duckdb_result_get_chunk( pRes->result, i );
-               idx_t size = duckdb_data_chunk_get_size( chunk );
-               
-               if ( target_row < current_row + size )
-               {
-                  pRes->current_chunk = chunk;
-                  pRes->current_chunk_idx = i;
-                  pRes->chunk_start_row = current_row;
-                  pRes->chunk_end_row = current_row + size;
-                  break;
-               }
-               else
-               {
-                  current_row += size;
-                  duckdb_destroy_data_chunk( &chunk );
-               }
+            /* Utilização da nossa função local e matemática direta para não depender dos headers do Harbour */
+            long lJulian   = duckdb_to_julian( ts.date.year, ts.date.month, ts.date.day );
+            long lMilliSec = ( ts.time.hour * 3600000 ) + ( ts.time.min * 60000 ) + 
+                             ( ts.time.sec * 1000 ) + ( ts.time.micros / 1000 );
+            
+            hb_rettdt( lJulian, lMilliSec );
+            break;
+        }
+
+        case DUCKDB_TYPE_VARCHAR:
+        {
+            duckdb_string_t str_val = ((duckdb_string_t *)data)[row_in_chunk];
+            uint32_t len = str_val.value.inlined.length;
+            
+            if( len <= 12 ) { 
+                hb_retclen( (const char *) str_val.value.inlined.inlined, len );
+            } else {
+                hb_retclen( (const char *) str_val.value.pointer.ptr, len );
             }
-         }
-         
-         if ( pRes->current_chunk == NULL )
-         {
+            break;
+        }
+
+        default:
+            /* Tipos não mapeados retornam NIL */
             hb_ret();
-            return;
-         }
-         
-         idx_t row_in_chunk = target_row - pRes->chunk_start_row;
-         duckdb_vector vector = duckdb_data_chunk_get_vector( pRes->current_chunk, col_idx );
-         
-         uint64_t * validity = duckdb_vector_get_validity( vector );
-         if ( validity != NULL && !duckdb_validity_row_is_valid( validity, row_in_chunk ) )
-         {
-            hb_ret(); 
-            return;
-         }
-         
-         duckdb_type type = duckdb_column_type( &(pRes->result), col_idx );
-         
-         switch ( type )
-         {
-            case DUCKDB_TYPE_BOOLEAN: {
-               bool * bool_data = (bool *) duckdb_vector_get_data( vector );
-               hb_retl( bool_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_TINYINT: {
-               int8_t * int_data = (int8_t *) duckdb_vector_get_data( vector );
-               hb_retni( (int) int_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_SMALLINT: {
-               int16_t * int_data = (int16_t *) duckdb_vector_get_data( vector );
-               hb_retni( (int) int_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_INTEGER: {
-               int32_t * int_data = (int32_t *) duckdb_vector_get_data( vector );
-               hb_retnl( (long) int_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_BIGINT: {
-               int64_t * int_data = (int64_t *) duckdb_vector_get_data( vector );
-               hb_retnll( (HB_LONGLONG) int_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_FLOAT: {
-               float * float_data = (float *) duckdb_vector_get_data( vector );
-               hb_retnd( (double) float_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_DOUBLE: {
-               double * double_data = (double *) duckdb_vector_get_data( vector );
-               hb_retnd( double_data[ row_in_chunk ] );
-               break;
-            }
-            case DUCKDB_TYPE_VARCHAR: {
-               duckdb_string_t * string_data = (duckdb_string_t *) duckdb_vector_get_data( vector );
-               duckdb_string_t str_val = string_data[ row_in_chunk ];
-               
-               const char * str_ptr = duckdb_string_t_data( &str_val );
-               idx_t str_len = (idx_t) duckdb_string_t_length( str_val ); // Corrigido para passar por valor[cite: 13]
-               
-               hb_retclen( str_ptr, ( HB_SIZE ) str_len );
-               break;
-            }
-            default: {
-               char * val_str = duckdb_value_varchar( &( pRes->result ), ( idx_t ) col_idx, target_row );
-               if( val_str )
-               {
-                  hb_retc( val_str );
-                  duckdb_free( val_str );
-               }
-               else
-               {
-                  hb_ret();
-               }
-               break;
-            }
-         }
-         return;
-      }
-   }
-   hb_ret();
-}
-
-HB_FUNC( DUCKDBFREE )
-{
-   PHB_ITEM aParam = hb_param( 1, HB_IT_ARRAY );
-
-   if( aParam )
-   {
-      HB_DUCKDB_RESULT * pRes = ( HB_DUCKDB_RESULT * ) hb_itemGetPtr( hb_itemArrayGet( aParam, 1 ) );
-
-      if( pRes )
-      {
-         if( pRes->current_chunk )
-         {
-            duckdb_destroy_data_chunk( &( pRes->current_chunk ) );
-         }
-
-         duckdb_destroy_result( &( pRes->result ) );
-         hb_xfree( pRes );
-         hb_arraySetPtr( aParam, 1, NULL );
-         hb_retnl( 1 );
-         return;
-      }
-   }
-   hb_retnl( 0 );
+            break;
+    }
 }
