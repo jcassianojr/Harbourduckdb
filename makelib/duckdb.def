@@ -14,3 +14,16 @@ duckdb_column_type
 duckdb_value_varchar
 duckdb_result_error
 duckdb_free
+duckdb_fetch_chunk
+duckdb_data_chunk_get_size
+duckdb_destroy_data_chunk
+duckdb_data_chunk_get_vector
+duckdb_vector_get_data
+duckdb_vector_get_validity
+duckdb_validity_row_is_valid
+duckdb_vector_get_column_type
+duckdb_get_type_id
+duckdb_destroy_logical_type
+duckdb_decimal_to_double
+duckdb_from_date
+duckdb_from_timestamp

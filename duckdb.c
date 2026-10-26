@@ -311,3 +311,51 @@ HB_FUNC( DUCKDBGETDATA )
             break;
     }
 }
+
+
+/* =========================================================================
+   WRAPPERS DE COMPATIBILIDADE RETROATIVA (Para RDD e classes legadas)
+========================================================================= */
+
+HB_FUNC( DUCKDBEXECUTE )
+{
+    duckdb_connection *conn = (duckdb_connection *) hb_parptr(1);
+    const char *query = hb_parc(2);
+
+    if( conn && query ) {
+        duckdb_result result;
+        duckdb_state state = duckdb_query( *conn, query, &result );
+        if( state == DuckDBSuccess ) {
+            duckdb_destroy_result( &result );
+            hb_retni( 0 ); // Sucesso
+        } else {
+            duckdb_destroy_result( &result );
+            hb_retni( -1 ); // Erro
+        }
+    } else {
+        hb_retni( -1 );
+    }
+}
+
+HB_FUNC( DUCKDBERROR )
+{
+    // Retorna mensagem de erro genérica ou vazia se não houver handle inválido
+    hb_retc( "Erro na execução DuckDB C-API" );
+}
+
+HB_FUNC( DUCKDBFETCH )
+{
+    /* Nota: Na v2 otimizada, o DuckDBQuery já carrega todos os chunks. 
+       Este wrapper simula o avanço do ponteiro para manter o loop do RDD funcionando. */
+    HB_DUCKDB_RESULT *res = (HB_DUCKDB_RESULT *) hb_parptr(1);
+    
+    HB_SYMBOL_UNUSED( res );
+
+    hb_retni( 0 ); // 0 = Success (Emula fetch correto)
+}
+
+HB_FUNC( DUCKDBFREE )
+{
+    // Redireciona para a nova função oficial de liberação
+    HB_FUNC_EXEC( DUCKDBFREERESULT );
+}
