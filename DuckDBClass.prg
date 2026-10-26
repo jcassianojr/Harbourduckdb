@@ -1,10 +1,6 @@
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Programa  : DuckDBClass.prg
-*+
-*+
 *+
 *+     Sistema:
 *+
@@ -16,11 +12,7 @@
 *+
 *+     
 *+
-*+
-*+
 *+    Documentado em 13-Out-2026 as  4:21 pm
-*+
-*+
 *+
 *+--------------------------------------------------------------------
 *+
@@ -33,7 +25,6 @@
 #include "hbclass.ch"
 #include "duckdb.ch"
 #include "try.ch"
-
 
 CREATE CLASS DuckDBClass
 
@@ -74,18 +65,11 @@ CREATE CLASS DuckDBClass
 
 ENDCLASS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method New()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD New(cDatabase,cUser,cPassword,nDialect,cCharSet,cAlias,cConnStr) CLASS DuckDBClass
 
@@ -171,19 +155,11 @@ ENDIF
 
 RETURN Self
 
-
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method TratarDialeto()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD TratarDialeto(cDatabase,nDialect,cAlias,cConnStr) CLASS DuckDBClass
 
@@ -256,18 +232,11 @@ ENDIF
 
 RETURN .T.
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method StartTransaction()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD StartTransaction() CLASS DuckDBClass
 
@@ -286,18 +255,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Rollback()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Rollback() CLASS DuckDBClass
 
@@ -318,18 +280,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Commit()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Commit() CLASS DuckDBClass
 
@@ -350,18 +305,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Execute()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Execute(cQuery) CLASS DuckDBClass
 
@@ -383,35 +331,21 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Query()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Query(cQuery) CLASS DuckDBClass
 
 RETURN TDuckDBQuery():New(::db,cQuery,::dialect)
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method TableExists()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD TableExists(cTable) CLASS DuckDBClass
 
@@ -429,18 +363,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method ListTables()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD ListTables(cSchema) CLASS DuckDBClass
 
@@ -464,18 +391,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method TableStruct()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD TableStruct(cTable) CLASS DuckDBClass
 
@@ -543,18 +463,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Delete()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Delete(oRow,cWhere) CLASS DuckDBClass
 
@@ -589,18 +502,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Append()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Append(oRow) CLASS DuckDBClass
 
@@ -650,18 +556,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Update()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Update(oRow,cWhere) CLASS DuckDBClass
 
@@ -703,18 +602,11 @@ ENDIF
 
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method GetServerInfo()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD GetServerInfo() CLASS DuckDBClass
 
@@ -731,7 +623,6 @@ IF oQuery != NIL
 ENDIF
 
 RETURN AllTrim(cVersion)
-
 
 CREATE CLASS TDuckDBQuery
    VAR nError
@@ -779,18 +670,11 @@ CREATE CLASS TDuckDBQuery
    METHOD GetKeyField()
 ENDCLASS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method New()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD New(nDB,cQuery,nDialect) CLASS TDuckDBQuery
 
@@ -802,18 +686,11 @@ METHOD New(nDB,cQuery,nDialect) CLASS TDuckDBQuery
 ::Refresh()
 RETURN Self
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method LastRec()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD LastRec() CLASS TDuckDBQuery
 
@@ -825,18 +702,11 @@ IF oQCount != NIL
 ENDIF
 RETURN nTotal
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Refresh()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Refresh() CLASS TDuckDBQuery
 
@@ -886,8 +756,6 @@ ENDIF
 
 RETURN result
 
-
-
 *+--------------------------------------------------------------------
 *+    Method Destroy() em TDuckDBQuery (DuckDBClass.prg)
 *+--------------------------------------------------------------------
@@ -905,18 +773,11 @@ ENDIF
 ::closed := .T.
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Fetch()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Fetch() CLASS TDuckDBQuery
 
@@ -938,18 +799,11 @@ IF !::lError .AND. !::lEof
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Struct()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Struct() CLASS TDuckDBQuery
 
@@ -961,18 +815,11 @@ IF !::lError
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldPos()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldPos(cField) CLASS TDuckDBQuery
 
@@ -982,18 +829,11 @@ IF !::lError
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldName()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldName(nField) CLASS TDuckDBQuery
 
@@ -1003,18 +843,11 @@ IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldType()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldType(nField) CLASS TDuckDBQuery
 
@@ -1024,18 +857,11 @@ IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldLen()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldLen(nField) CLASS TDuckDBQuery
 
@@ -1045,18 +871,11 @@ IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldDec()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldDec(nField) CLASS TDuckDBQuery
 
@@ -1066,18 +885,11 @@ IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldGet()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldGet(nField) CLASS TDuckDBQuery
 
@@ -1134,18 +946,11 @@ IF !::lError .AND. nField >= 1 .AND. nField <= Len(::aStruct) .AND. !::closed
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Getrow()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Getrow() CLASS TDuckDBQuery
 
@@ -1159,18 +964,11 @@ IF !::lError .AND. !::closed
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method GetBlankRow()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD GetBlankRow() CLASS TDuckDBQuery
 
@@ -1201,18 +999,11 @@ IF !::lError
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method GetKeyField()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD GetKeyField() CLASS TDuckDBQuery
 
@@ -1244,18 +1035,11 @@ CREATE CLASS TDuckDBRow
    METHOD GetKeyField()
 ENDCLASS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method new()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD new(row,struct,nDb,nDialect,aTable) CLASS TDuckDBRow
 
@@ -1267,18 +1051,11 @@ METHOD new(row,struct,nDb,nDialect,aTable) CLASS TDuckDBRow
 ::aChanged := Array(Len(row))
 RETURN Self
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method Changed()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD Changed(nField) CLASS TDuckDBRow
 
@@ -1288,18 +1065,11 @@ IF nField >= 1 .AND. Len(::aChanged) >= nField .AND. ::aChanged != NIL
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldGet()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldGet(nField) CLASS TDuckDBRow
 
@@ -1309,18 +1079,11 @@ IF nField >= 1 .AND. nField <= Len(::aRow)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldPut()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldPut(nField,Value) CLASS TDuckDBRow
 
@@ -1331,18 +1094,11 @@ IF nField >= 1 .AND. nField <= Len(::aRow)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldName()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldName(nField) CLASS TDuckDBRow
 
@@ -1352,35 +1108,21 @@ IF nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldPos()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldPos(cField) CLASS TDuckDBRow
 
 RETURN AScan(::aStruct,{| x | x[1] == RTrim(Upper(cField))})
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldType()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldType(nField) CLASS TDuckDBRow
 
@@ -1390,18 +1132,11 @@ IF nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldLen()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldLen(nField) CLASS TDuckDBRow
 
@@ -1411,18 +1146,11 @@ IF nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method FieldDec()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD FieldDec(nField) CLASS TDuckDBRow
 
@@ -1432,18 +1160,11 @@ IF nField >= 1 .AND. nField <= Len(::aStruct)
 ENDIF
 RETURN result
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Method GetKeyField()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 METHOD GetKeyField() CLASS TDuckDBRow
 
@@ -1452,18 +1173,11 @@ IF ::aKeys == NIL
 ENDIF
 RETURN ::aKeys
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function KeyField()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION KeyField(aTables,db)
 
@@ -1483,18 +1197,11 @@ IF Len(aTables) == 1
 ENDIF
 RETURN aKeys
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DataToSql()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DataToSql(xField)
 
@@ -1521,18 +1228,11 @@ RETURN iif(xField,"TRUE","FALSE")
 ENDSWITCH
 RETURN "NULL"
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function StructConvert()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION StructConvert(aStru,db)
 
@@ -1588,15 +1288,9 @@ RETURN aNew
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function QuoteIdent()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION QuoteIdent(cIdent)
 
@@ -1605,18 +1299,11 @@ IF Empty(cIdent)
 ENDIF
 RETURN '"'+StrTran(cIdent,'"','""')+'"'
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function NumericValue()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION NumericValue(xValue)
 
@@ -1627,18 +1314,11 @@ ELSEIF HB_ISSTRING(xValue) .AND. !Empty(xValue)
 ENDIF
 RETURN 0
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function StrDateClass()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION StrDateClass(xData)
 
@@ -1757,18 +1437,11 @@ RETURN dRet
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function UniversalDateTime()
-*+
-*+
 *+
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 STATIC FUNCTION UniversalDateTime(xData)
-
 
 LOCAL cStr,cDataLimpa,aParts,i,dData
 LOCAL cTime := "00:00:00"
@@ -1831,7 +1504,6 @@ ENDIF
 
 // 7. Retorna o Objeto Timestamp Oficial
 RETURN hb_DateTime(Year(dData),Month(dData),Day(dData),nHour,nMin,nSec)
-
 
 *+ EOF: DuckDBClass.prg
 *+

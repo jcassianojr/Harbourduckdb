@@ -1,10 +1,6 @@
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Programa  : duckdbrdd.prg
-*+
-*+
 *+
 *+     Sistema:
 *+
@@ -16,20 +12,10 @@
 *+
 *+     
 *+
-*+
-*+
-*+    Documentado em 13-Out-2026 as 11:05 am
-*+
-*+
+*+    Documentado em 26-Out-2026 as  3:52 pm
 *+
 *+--------------------------------------------------------------------
 *+
-
-// +--------------------------------------------------------------------
-// +    Programa  : duckdbrdd.prg
-// +    Sistema   : RDD Nativo para DuckDB (Espelho de FB5RDD)
-// +    Linguagem : Harbour
-// +--------------------------------------------------------------------
 
 #include "rddsys.ch"
 #include "usrrdd.ch"
@@ -38,7 +24,6 @@
 #include "dbstruct.ch"
 #include "dbinfo.ch"   
 #include "duckdb.ch"
-
 
 #define AREA_CONN         1
 #define AREA_TABLE        2
@@ -65,27 +50,20 @@ STATIC s_aConnections := {}
 // +    Funcoes de Gerenciamento de Conexao e Transacao
 // +--------------------------------------------------------------------
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DBDUCKDBCONNECTION()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DBDUCKDBCONNECTION(cDatabase,nDialect,cAlias,cConnStr)
 
 LOCAL db,cDir,cName,cExt
 
-IF cAlias == NIL 
+IF cAlias == NIL
    cAlias := "db_conn"
 ENDIF
-IF cConnStr == NIL 
+IF cConnStr == NIL
    cConnStr := ""
 ENDIF
 
@@ -137,18 +115,11 @@ ENDIF
 AAdd(s_aConnections,{db,nDialect,cAlias,cConnStr})
 RETURN Len(s_aConnections)
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function TratarDialeto_RDD()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION TratarDialeto_RDD(db,cDatabase,nDialect,cAlias,cConnStr)
 
@@ -156,20 +127,20 @@ LOCAL cSql := ""
 
 DO CASE
 CASE nDialect == DIALETO_DUCKLAKE
-   IF DuckDBExecute(db,"INSTALL ducklake; LOAD ducklake;") < 0 
-      RETURN .F. 
+   IF DuckDBExecute(db,"INSTALL ducklake; LOAD ducklake;") < 0
+      RETURN .F.
    ENDIF
    cSql := "ATTACH 'ducklake:"+cDatabase+"' AS "+DUCKDB_QuoteIdent(cAlias)+";"
 
 CASE nDialect == DIALETO_SQLITE
-   IF DuckDBExecute(db,"INSTALL sqlite; LOAD sqlite;") < 0 
-      RETURN .F. 
+   IF DuckDBExecute(db,"INSTALL sqlite; LOAD sqlite;") < 0
+      RETURN .F.
    ENDIF
    cSql := "ATTACH '"+cDatabase+"' AS "+DUCKDB_QuoteIdent(cAlias)+" (TYPE sqlite);"
 
 CASE nDialect == DIALETO_MYSQL
-   IF DuckDBExecute(db,"INSTALL mysql; LOAD mysql;") < 0 
-      RETURN .F. 
+   IF DuckDBExecute(db,"INSTALL mysql; LOAD mysql;") < 0
+      RETURN .F.
    ENDIF
    IF !Empty(cConnStr)
       cSql := "ATTACH '"+cConnStr+"' AS "+DUCKDB_QuoteIdent(cAlias)+" (TYPE mysql);"
@@ -178,8 +149,8 @@ CASE nDialect == DIALETO_MYSQL
    ENDIF
 
 CASE nDialect == DIALETO_POSTGRES
-   IF DuckDBExecute(db,"INSTALL postgres; LOAD postgres;") < 0 
-      RETURN .F. 
+   IF DuckDBExecute(db,"INSTALL postgres; LOAD postgres;") < 0
+      RETURN .F.
    ENDIF
    IF !Empty(cConnStr)
       cSql := "ATTACH '"+cConnStr+"' AS "+DUCKDB_QuoteIdent(cAlias)+" (TYPE postgres);"
@@ -188,8 +159,8 @@ CASE nDialect == DIALETO_POSTGRES
    ENDIF
 
 CASE nDialect >= DIALETO_ODBC .AND. nDialect <= DIALETO_ODBC_DSN
-   IF DuckDBExecute(db,"INSTALL odbc; LOAD odbc;") < 0 
-      RETURN .F. 
+   IF DuckDBExecute(db,"INSTALL odbc; LOAD odbc;") < 0
+      RETURN .F.
    ENDIF
    cSql := "SET VARIABLE "+DUCKDB_QuoteIdent(cAlias)+" = odbc_connect('"+cConnStr+"');"
 ENDCASE
@@ -201,18 +172,11 @@ IF !Empty(cSql)
 ENDIF
 RETURN .T.
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DBDUCKDBGETHANDLE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DBDUCKDBGETHANDLE(nConn)
 
@@ -221,18 +185,11 @@ IF nConn > 0 .AND. nConn <= Len(s_aConnections) .AND. s_aConnections[nConn] != N
 ENDIF
 RETURN NIL
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DBDUCKDBCLEARCONNECTION()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DBDUCKDBCLEARCONNECTION(nConn)
 
@@ -246,18 +203,11 @@ IF nConn > 0 .AND. nConn <= Len(s_aConnections) .AND. s_aConnections[nConn] != N
 ENDIF
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DBDUCKDBCOMMIT()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DBDUCKDBCOMMIT(nConn)
 
@@ -268,18 +218,11 @@ IF nConn > 0 .AND. nConn <= Len(s_aConnections) .AND. s_aConnections[nConn] != N
 ENDIF
 RETURN - 1
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DBDUCKDBROLLBACK()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DBDUCKDBROLLBACK(nConn)
 
@@ -294,38 +237,24 @@ RETURN - 1
 // +    Auxiliares Internas
 // +--------------------------------------------------------------------
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_QuoteIdent()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_QuoteIdent(cIdent)
 
-IF Empty(cIdent) 
-   RETURN '""' 
+IF Empty(cIdent)
+   RETURN '""'
 ENDIF
 RETURN '"'+StrTran(cIdent,'"','""')+'"'
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DUCKDB_SETPK()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DUCKDB_SETPK(cAlias,cFields)
 
@@ -336,7 +265,7 @@ IF PCount() == 1
    nWA     := Select ()
 ELSE
    nWA := Select (cAlias)
-   IF nWA == 0 
+   IF nWA == 0
       nWA := Select ()
    ENDIF
 ENDIF
@@ -350,36 +279,22 @@ IF nWA > 0
 ENDIF
 RETURN .F.
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_INIT()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_INIT(nRDD)
 
 USRRDD_RDDDATA(nRDD)
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_NEW()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_NEW(pWA)
 
@@ -404,18 +319,11 @@ aWAData[ AREA_RECCOUNT ]    := 0
 USRRDD_AREADATA(pWA,aWAData)
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_ADDFIELD()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_ADDFIELD(nWA,aField)
 
@@ -428,18 +336,11 @@ IF aWAData != NIL
 ENDIF
 RETURN UR_SUPER_ADDFIELD(nWA,aField)
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_OPEN()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_OPEN(nWA,aOpenInfo)
 
@@ -461,7 +362,7 @@ ELSE
    oError             := ErrorNew()
    oError:GenCode     := EG_OPEN
    oError:Description := "Nenhuma conexao DuckDB ativa ou conexao invalida."
-   UR_SUPER_ERROR(nWA,oError) 
+   UR_SUPER_ERROR(nWA,oError)
    RETURN FAILURE
 ENDIF
 
@@ -498,7 +399,7 @@ IF !HB_ISARRAY(qry) .OR. Len(qry) < 6
    oError             := ErrorNew()
    oError:GenCode     := EG_OPEN
    oError:Description := "Falha ao ler estrutura da tabela no DuckDB: "+DuckDBError(db)
-   UR_SUPER_ERROR(nWA,oError) 
+   UR_SUPER_ERROR(nWA,oError)
    RETURN FAILURE
 ENDIF
 
@@ -517,63 +418,62 @@ FOR i := 1 TO nCols
 
    SWITCH nType
 
-CASE "BOOLEAN" 
-         cType := HB_FT_LOGICAL
-         nSize := 1
-         nDec  := 0
-         EXIT
-      CASE "VARCHAR" 
-      CASE "CHAR" 
-         cType := HB_FT_STRING
-         EXIT
-      CASE "INTEGER" 
-      CASE "TINYINT" 
-      CASE "SMALLINT" 
-      CASE "UTINYINT" 
-      CASE "USMALLINT" 
-         cType := HB_FT_INTEGER
-         EXIT
-      CASE "BIGINT" 
-      CASE "HUGEINT" 
-      CASE "UINTEGER" 
-      CASE "UBIGINT" 
-         cType := HB_FT_LONG
-         EXIT
-      CASE "DOUBLE" 
-      CASE "FLOAT" 
-      CASE "DECIMAL"     // <-- Garantido como Numérico de Dupla Precisão
-      CASE "NUMERIC" 
-         cType := HB_FT_DOUBLE
-         EXIT
-      CASE "DATE" 
-         cType := HB_FT_DATE
-         nSize := 8
-         nDec  := 0
-         EXIT
-      CASE "TIMESTAMP" 
-      CASE "TIMESTAMP_S" 
-      CASE "TIMESTAMP_MS" 
-      CASE "TIMESTAMP_NS"
-         cType := HB_FT_TIMESTAMP
-         nSize := 20
-         nDec  := 0
-         EXIT
+   CASE "BOOLEAN"
+      cType := HB_FT_LOGICAL
+      nSize := 1
+      nDec  := 0
+      EXIT
+   CASE "VARCHAR"
+   CASE "CHAR"
+      cType := HB_FT_STRING
+      EXIT
+   CASE "INTEGER"
+   CASE "TINYINT"
+   CASE "SMALLINT"
+   CASE "UTINYINT"
+   CASE "USMALLINT"
+      cType := HB_FT_INTEGER
+      EXIT
+   CASE "BIGINT"
+   CASE "HUGEINT"
+   CASE "UINTEGER"
+   CASE "UBIGINT"
+      cType := HB_FT_LONG
+      EXIT
+   CASE "DOUBLE"
+   CASE "FLOAT"
+   CASE "DECIMAL"   // <-- Garantido como Numérico de Dupla Precisão
+   CASE "NUMERIC"
+      cType := HB_FT_DOUBLE
+      EXIT
+   CASE "DATE"
+      cType := HB_FT_DATE
+      nSize := 8
+      nDec  := 0
+      EXIT
+   CASE "TIMESTAMP"
+   CASE "TIMESTAMP_S"
+   CASE "TIMESTAMP_MS"
+   CASE "TIMESTAMP_NS"
+      cType := HB_FT_TIMESTAMP
+      nSize := 20
+      nDec  := 0
+      EXIT
 
-CASE "TIME" 
-   cType := HB_FT_STRING
-   nSize := 15
-   nDec  := 0
-   EXIT
+   CASE "TIME"
+      cType := HB_FT_STRING
+      nSize := 15
+      nDec  := 0
+      EXIT
 
-
-CASE "BLOB" 
-   cType := HB_FT_MEMO
-   nSize := 10
-   nDec  := 0
-   EXIT
-OTHERWISE 
-   cType := HB_FT_STRING
-   nDec  := 0
+   CASE "BLOB"
+      cType := HB_FT_MEMO
+      nSize := 10
+      nDec  := 0
+      EXIT
+   OTHERWISE
+      cType := HB_FT_STRING
+      nDec  := 0
    ENDSWITCH
 
    aField               := Array(UR_FI_SIZE)
@@ -582,14 +482,14 @@ OTHERWISE
 
    IF nSize <= 0
       DO CASE
-      CASE cType == HB_FT_STRING 
+      CASE cType == HB_FT_STRING
          nSize := 250
-      CASE cType == HB_FT_DOUBLE 
+      CASE cType == HB_FT_DOUBLE
          nSize := 18
          nDec  := 4
-      CASE cType == HB_FT_INTEGER 
+      CASE cType == HB_FT_INTEGER
          nSize := 10
-      CASE cType == HB_FT_LONG 
+      CASE cType == HB_FT_LONG
          nSize := 15
       ENDCASE
    ENDIF
@@ -615,19 +515,11 @@ IF UR_SUPER_OPEN(nWA,aOpenInfo) != SUCCESS
 ENDIF
 RETURN SUCCESS
 
-
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_FETCH_NEXT()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_FETCH_NEXT(nWA)
 
@@ -635,8 +527,8 @@ LOCAL aWAData := USRRDD_AREADATA(nWA)
 LOCAL qry     := aWAData[AREA_QUERY]
 LOCAL aRow,i,nCols,xVal,cType
 
-IF aWAData[AREA_FETCHED_EOF] 
-   RETURN .F. 
+IF aWAData[AREA_FETCHED_EOF]
+   RETURN .F.
 ENDIF
 
 IF HB_ISARRAY(qry) .AND. DuckDBFetch(qry) == 0
@@ -649,15 +541,15 @@ IF HB_ISARRAY(qry) .AND. DuckDBFetch(qry) == 0
 
       IF xVal == NIL
          DO CASE
-         CASE cType == HB_FT_STRING .OR. cType == HB_FT_MEMO 
+         CASE cType == HB_FT_STRING .OR. cType == HB_FT_MEMO
             xVal := ""
-         CASE cType == HB_FT_DOUBLE .OR. cType == HB_FT_LONG .OR. cType == HB_FT_INTEGER 
+         CASE cType == HB_FT_DOUBLE .OR. cType == HB_FT_LONG .OR. cType == HB_FT_INTEGER
             xVal := 0
-         CASE cType == HB_FT_LOGICAL 
+         CASE cType == HB_FT_LOGICAL
             xVal := .F.
-         CASE cType == HB_FT_DATE 
+         CASE cType == HB_FT_DATE
             xVal := CToD("")
-         CASE cType == HB_FT_TIMESTAMP 
+         CASE cType == HB_FT_TIMESTAMP
             xVal := hb_SToT()
          ENDCASE
       ELSE
@@ -671,7 +563,6 @@ IF HB_ISARRAY(qry) .AND. DuckDBFetch(qry) == 0
 
          ELSEIF cType == HB_FT_TIMESTAMP
             xVal := UniversalDateTime(xVal)   // <-- INJEÇÃO: Conversor Universal de Data e Hora
-
 
          ELSEIF cType == HB_FT_DOUBLE .OR. cType == HB_FT_LONG .OR. cType == HB_FT_INTEGER
             IF !HB_ISNUMERIC(xVal)
@@ -688,18 +579,11 @@ ENDIF
 aWAData[ AREA_FETCHED_EOF ] := .T.
 RETURN .F.
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_CLOSE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_CLOSE(nWA)
 
@@ -714,15 +598,9 @@ RETURN UR_SUPER_CLOSE(nWA)
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_GETVALUE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_GETVALUE(nWA,nField,xValue)
 
@@ -736,15 +614,9 @@ RETURN SUCCESS
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_PUTVALUE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_PUTVALUE(nWA,nField,xValue)
 
@@ -759,24 +631,17 @@ ENDIF
 aWAData[ AREA_ROWBUF, nField ] := xValue
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_SKIP()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_SKIP(nWA,nRecords)
 
 LOCAL aWAData := USRRDD_AREADATA(nWA),nNewRec
-IF !Empty(aWAData[AREA_ROWBUF]) 
-   DUCKDB_FLUSH(nWA) 
+IF !Empty(aWAData[AREA_ROWBUF])
+   DUCKDB_FLUSH(nWA)
 ENDIF
 
 nNewRec := aWAData[AREA_RECNO]+nRecords
@@ -802,18 +667,11 @@ ELSE
 ENDIF
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_GOTOP()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_GOTOP(nWA)
 
@@ -821,36 +679,23 @@ RETURN DUCKDB_GOTO(nWA,1)
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_GOBOTTOM()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_GOBOTTOM(nWA)
 
 LOCAL aWAData := USRRDD_AREADATA(nWA)
-WHILE !aWAData[AREA_FETCHED_EOF] 
-   DUCKDB_FETCH_NEXT(nWA) 
+WHILE !aWAData[AREA_FETCHED_EOF]
+   DUCKDB_FETCH_NEXT(nWA)
 ENDDO
 RETURN DUCKDB_GOTO(nWA,Len(aWAData[AREA_CACHE]))
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_GOTOID()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_GOTOID(nWA,nRecord)
 
@@ -858,21 +703,22 @@ RETURN DUCKDB_GOTO(nWA,nRecord)
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_GOTO()
-*+
-*+
 *+
 *+--------------------------------------------------------------------
 *+
+
+*+--------------------------------------------------------------------
 *+
+*+    Static Function DUCKDB_GOTO()
+*+
+*+--------------------------------------------------------------------
 *+
 STATIC FUNCTION DUCKDB_GOTO(nWA,nRecord)
 
 LOCAL aWAData := USRRDD_AREADATA(nWA)
-IF !Empty(aWAData[AREA_ROWBUF]) 
-   DUCKDB_FLUSH(nWA) 
+IF !Empty(aWAData[AREA_ROWBUF])
+   DUCKDB_FLUSH(nWA)
 ENDIF
 WHILE nRecord > Len(aWAData[AREA_CACHE]) .AND. !aWAData[AREA_FETCHED_EOF]
    DUCKDB_FETCH_NEXT(nWA)
@@ -884,18 +730,11 @@ IF nRecord >= 1 .AND. nRecord <= Len(aWAData[AREA_CACHE])
 ENDIF
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_RECCOUNT()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_RECCOUNT(nWA,nRecords)
 
@@ -903,18 +742,11 @@ LOCAL aWAData := USRRDD_AREADATA(nWA)
 nRecords := aWAData[AREA_RECCOUNT]
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_BOF()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_BOF(nWA,lBof)
 
@@ -923,15 +755,9 @@ RETURN SUCCESS
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_EOF()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_EOF(nWA,lEof)
 
@@ -940,33 +766,20 @@ RETURN SUCCESS
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function DUCKDB_RECID()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_RECID(nWA,nRecNo)
 
 nRecNo := USRRDD_AREADATA(nWA) [AREA_RECNO]
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_APPEND()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_APPEND(nWA,nRecords)
 
@@ -982,18 +795,11 @@ aWAData[ AREA_APPEND ] := .T.
 aWAData[ AREA_EOF ]    := .T.
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_FLUSH()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_FLUSH(nWA)
 
@@ -1006,7 +812,7 @@ IF !Empty(aWAData[AREA_ROWBUF])
       cFields := ""
       cValues := ""
       FOR i := 1 TO Len(aWAData[AREA_FIELDS])
-         IF aWAData[AREA_ROWBUF ,  i] != NIL
+         IF aWAData[AREA_ROWBUF,i] != NIL
             IF !(cFields == "")
                cFields += ", "
                cValues += ", "
@@ -1037,14 +843,14 @@ IF !Empty(aWAData[AREA_ROWBUF])
             // Erro de SQL
             oError             := ErrorNew()
             oError:Description := "Erro DUCKDBRDD (Insert): "+DuckDBError(db)
-            UR_SUPER_ERROR(nWA,oError) 
+            UR_SUPER_ERROR(nWA,oError)
             RETURN FAILURE
          ENDIF
       ELSE
          IF DuckDBExecute(db,cSql) < 0
             oError             := ErrorNew()
             oError:Description := "Erro DUCKDBRDD (Insert): "+DuckDBError(db)
-            UR_SUPER_ERROR(nWA,oError) 
+            UR_SUPER_ERROR(nWA,oError)
             RETURN FAILURE
          ENDIF
       ENDIF
@@ -1052,14 +858,14 @@ IF !Empty(aWAData[AREA_ROWBUF])
       IF Empty(aWAData[AREA_PK])
          oError             := ErrorNew()
          oError:Description := "DUCKDBRDD: UPDATE abortado sem Primary Key."
-         UR_SUPER_ERROR(nWA,oError) 
+         UR_SUPER_ERROR(nWA,oError)
          RETURN FAILURE
       ENDIF
 
       cSql := ""
       FOR i := 1 TO Len(aWAData[AREA_FIELDS])
-         IF aWAData[AREA_ROWBUF ,  i] != NIL
-            IF !Empty(cSql) 
+         IF aWAData[AREA_ROWBUF,i] != NIL
+            IF !Empty(cSql)
                cSql += ", "
             ENDIF
             cSql += DUCKDB_QuoteIdent(aWAData[AREA_FIELDS,i])+" = "+DUCKDB_ValToSql(aWAData[AREA_ROWBUF,i])
@@ -1076,7 +882,7 @@ IF !Empty(aWAData[AREA_ROWBUF])
       FOR i := 1 TO Len(aWAData[AREA_PK])
          nPosPK := AScan(aWAData[AREA_FIELDS],aWAData[AREA_PK,i])
          IF nPosPK > 0
-            IF !Empty(cWhere) 
+            IF !Empty(cWhere)
                cWhere += " AND "
             ENDIF
             cWhere += DUCKDB_QuoteIdent(aWAData[AREA_PK,i])+" = "+DUCKDB_ValToSql(aWAData[AREA_CACHE,aWAData[AREA_RECNO],nPosPK])
@@ -1085,7 +891,7 @@ IF !Empty(aWAData[AREA_ROWBUF])
       IF Empty(cWhere)
          oError             := ErrorNew()
          oError:Description := "DUCKDBRDD: UPDATE sem campos de Primary Key validos."
-         UR_SUPER_ERROR(nWA,oError) 
+         UR_SUPER_ERROR(nWA,oError)
          RETURN FAILURE
       ENDIF
       cSql += " WHERE "+cWhere
@@ -1093,7 +899,7 @@ IF !Empty(aWAData[AREA_ROWBUF])
       IF DuckDBExecute(db,cSql) < 0
          oError             := ErrorNew()
          oError:Description := "Erro DUCKDBRDD (Update): "+DuckDBError(db)
-         UR_SUPER_ERROR(nWA,oError) 
+         UR_SUPER_ERROR(nWA,oError)
          RETURN FAILURE
       ENDIF
    ENDIF
@@ -1110,18 +916,11 @@ IF !Empty(aWAData[AREA_ROWBUF])
 ENDIF
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_DELETE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_DELETE(nWA)
 
@@ -1132,7 +931,7 @@ LOCAL cSql,cWhere := "",i,nPosPK,oError
 IF Empty(aWAData[AREA_PK])
    oError             := ErrorNew()
    oError:Description := "DUCKDBRDD: DELETE abortado sem Primary Key."
-   UR_SUPER_ERROR(nWA,oError) 
+   UR_SUPER_ERROR(nWA,oError)
    RETURN FAILURE
 ENDIF
 
@@ -1140,7 +939,7 @@ IF aWAData[AREA_RECNO] > 0 .AND. aWAData[AREA_RECNO] <= Len(aWAData[AREA_CACHE])
    FOR i := 1 TO Len(aWAData[AREA_PK])
       nPosPK := AScan(aWAData[AREA_FIELDS],aWAData[AREA_PK,i])
       IF nPosPK > 0
-         IF !Empty(cWhere) 
+         IF !Empty(cWhere)
             cWhere += " AND "
          ENDIF
          cWhere += DUCKDB_QuoteIdent(aWAData[AREA_PK,i])+" = "+DUCKDB_ValToSql(aWAData[AREA_CACHE,aWAData[AREA_RECNO],nPosPK])
@@ -1150,7 +949,7 @@ IF aWAData[AREA_RECNO] > 0 .AND. aWAData[AREA_RECNO] <= Len(aWAData[AREA_CACHE])
    IF Empty(cWhere)
       oError             := ErrorNew()
       oError:Description := "DUCKDBRDD: DELETE sem campos de Primary Key validos."
-      UR_SUPER_ERROR(nWA,oError) 
+      UR_SUPER_ERROR(nWA,oError)
       RETURN FAILURE
    ENDIF
 
@@ -1159,69 +958,55 @@ IF aWAData[AREA_RECNO] > 0 .AND. aWAData[AREA_RECNO] <= Len(aWAData[AREA_CACHE])
    IF DuckDBExecute(db,cSql) < 0
       oError             := ErrorNew()
       oError:Description := "Erro DUCKDBRDD (Delete): "+DuckDBError(db)
-      UR_SUPER_ERROR(nWA,oError) 
+      UR_SUPER_ERROR(nWA,oError)
       RETURN FAILURE
    ENDIF
 
    ADel(aWAData[AREA_CACHE],aWAData[AREA_RECNO])
    ASize(aWAData[AREA_CACHE],Len(aWAData[AREA_CACHE]) - 1)
    aWAData[AREA_RECCOUNT] --
-   IF aWAData[AREA_RECNO] > Len(aWAData[AREA_CACHE]) 
+   IF aWAData[AREA_RECNO] > Len(aWAData[AREA_CACHE])
       aWAData[ AREA_EOF ] := .T.
    ENDIF
 ENDIF
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_ValToSql()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_ValToSql(xField)
 
 SWITCH ValType(xField)
-CASE "C" 
-CASE "M" 
-RETURN "'"+StrTran(xField,"'","''")+"'"
+CASE "C"
+CASE "M"
+   RETURN "'"+StrTran(xField,"'","''")+"'"
 CASE "D"
-IF Empty(xField) 
-   RETURN "NULL" 
-ENDIF
-RETURN "'"+StrZero(Year(xField),4)+"-"+StrZero(Month(xField),2)+"-"+StrZero(Day(xField),2)+"'"
+   IF Empty(xField)
+      RETURN "NULL"
+   ENDIF
+   RETURN "'"+StrZero(Year(xField),4)+"-"+StrZero(Month(xField),2)+"-"+StrZero(Day(xField),2)+"'"
 CASE "T"
-RETURN "CAST('"+Left(hb_TToS(xField),4)+"-"+;
- SubStr(hb_TToS(xField),5,2)+"-"+;
- SubStr(hb_TToS(xField),7,2)+" "+;
- SubStr(hb_TToS(xField),9,2)+":"+;
- SubStr(hb_TToS(xField),11,2)+":"+;
- SubStr(hb_TToS(xField),13)+"' AS TIMESTAMP)"
-CASE "N" 
-RETURN Str(xField)
-CASE "L" 
-RETURN iif(xField,"TRUE","FALSE")
+   RETURN "CAST('"+Left(hb_TToS(xField),4)+"-"+;
+    SubStr(hb_TToS(xField),5,2)+"-"+;
+    SubStr(hb_TToS(xField),7,2)+" "+;
+    SubStr(hb_TToS(xField),9,2)+":"+;
+    SubStr(hb_TToS(xField),11,2)+":"+;
+    SubStr(hb_TToS(xField),13)+"' AS TIMESTAMP)"
+CASE "N"
+   RETURN Str(xField)
+CASE "L"
+   RETURN iif(xField,"TRUE","FALSE")
 ENDSWITCH
 RETURN "NULL"
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_NumericValue()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_NumericValue(xValue)
 
@@ -1232,19 +1017,11 @@ ELSEIF HB_ISSTRING(xValue) .AND. !Empty(xValue)
 ENDIF
 RETURN 0
 
-
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_CREATE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_CREATE(nWA,aOpenInfo)
 
@@ -1333,72 +1110,51 @@ ENDIF
 
 RETURN SUCCESS
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_RDDINFO()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_RDDINFO(nIndex,cargo)
 
 LOCAL xRet := NIL
 DO CASE
-CASE nIndex == RDDI_TABLEEXT 
+CASE nIndex == RDDI_TABLEEXT
    xRet := ".duckdb"
-CASE nIndex == RDDI_MEMOEXT 
+CASE nIndex == RDDI_MEMOEXT
    xRet := ""
-CASE nIndex == RDDI_ORDBAGEXT 
+CASE nIndex == RDDI_ORDBAGEXT
    xRet := ""
-OTHERWISE 
+OTHERWISE
    xRet := UR_SUPER_RDDINFO(nIndex,cargo)
 ENDCASE
 RETURN xRet
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Static Function DUCKDB_INFO()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION DUCKDB_INFO(nWA,nIndex,cargo)
 
 LOCAL xRet := NIL
 DO CASE
-CASE nIndex == DBI_ISDBF 
+CASE nIndex == DBI_ISDBF
    xRet := .F.
-CASE nIndex == DBI_CANPUTREC 
+CASE nIndex == DBI_CANPUTREC
    xRet := .T.
-OTHERWISE 
+OTHERWISE
    xRet := UR_SUPER_INFO(nWA,nIndex,cargo)
 ENDCASE
 RETURN xRet
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Function DUCKDBRDD_GETFUNCTABLE()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 FUNCTION DUCKDBRDD_GETFUNCTABLE(pFuncCount,pFuncTable,pSuperTable,nRddID)
 
@@ -1430,18 +1186,11 @@ aMyFunc[ UR_CREATE ]   := (@DUCKDB_CREATE())
 
 RETURN USRRDD_GETFUNCTABLE(pFuncCount,pFuncTable,pSuperTable,nRddID,cSuperRDD,aMyFunc)
 
-
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 *+    Init Procedure DUCKDB_INIT_REGISTER()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 INIT PROC DUCKDB_INIT_REGISTER()
 
@@ -1452,15 +1201,9 @@ RETURN
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function StrDateRdd()
 *+
-*+
-*+
 *+--------------------------------------------------------------------
-*+
-*+
 *+
 STATIC FUNCTION StrDateRdd(xData)
 
@@ -1579,18 +1322,11 @@ RETURN dRet
 
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 *+    Static Function UniversalDateTime()
-*+
-*+
 *+
 *+--------------------------------------------------------------------
 *+
-*+
-*+
 STATIC FUNCTION UniversalDateTime(xData)
-
 
 LOCAL cStr,cDataLimpa,aParts,i,dData
 LOCAL cTime := "00:00:00"
@@ -1641,19 +1377,18 @@ ENDIF
 
 // 6. Separa e converte as partes do Horário
 aParts := hb_ATokens(cTime,":")
-IF Len(aParts) >= 1 
+IF Len(aParts) >= 1
    nHour := Val(aParts[1])
 ENDIF
-IF Len(aParts) >= 2 
+IF Len(aParts) >= 2
    nMin := Val(aParts[2])
 ENDIF
-IF Len(aParts) >= 3 
+IF Len(aParts) >= 3
    nSec := Val(aParts[3])
 ENDIF
 
 // 7. Retorna o Objeto Timestamp Oficial
 RETURN hb_DateTime(Year(dData),Month(dData),Day(dData),nHour,nMin,nSec)
-
 
 *+ EOF: duckdbrdd.prg
 *+

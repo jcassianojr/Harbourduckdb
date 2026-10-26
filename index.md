@@ -1,6 +1,6 @@
 # 📘 Harbour Documentation
 
-**Generated:** 10/11/2026
+**Generated:** 10/26/2026
 **Total symbols:** 118
 
 ## 📑 Table of Contents
@@ -128,577 +128,577 @@
 
 ## New
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 22)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 49)
 
 ---
 
 ## TratarDialeto
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 23)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 50)
 
 ---
 
 ## Destroy
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 25)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 52)
 
 ---
 
 ## Close
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 26)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 53)
 
 ---
 
 ## TableExists
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 28)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 55)
 
 ---
 
 ## ListTables
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 29)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 56)
 
 ---
 
 ## TableStruct
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 30)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 57)
 
 ---
 
 ## StartTransaction
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 32)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 59)
 
 ---
 
 ## Commit
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 33)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 60)
 
 ---
 
 ## Rollback
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 34)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 61)
 
 ---
 
 ## Execute
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 36)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 63)
 
 ---
 
 ## Query
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 37)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 64)
 
 ---
 
 ## Update
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 39)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 66)
 
 ---
 
 ## Delete
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 40)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 67)
 
 ---
 
 ## Append
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 41)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 68)
 
 ---
 
 ## GetServerInfo
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 42)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 69)
 
 ---
 
 ## NetErr
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 44)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 71)
 
 ---
 
 ## Error
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 45)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 72)
 
 ---
 
 ## ErrorNo
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 46)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 73)
 
 ---
 
 ## New
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 50)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 115)
 
 ---
 
 ## TratarDialeto
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 134)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 239)
 
 ---
 
 ## StartTransaction
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 194)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 349)
 
 ---
 
 ## Rollback
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 210)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 405)
 
 ---
 
 ## Commit
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 228)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 463)
 
 ---
 
 ## Execute
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 246)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 521)
 
 ---
 
 ## Query
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 265)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 580)
 
 ---
 
 ## TableExists
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 268)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 623)
 
 ---
 
 ## ListTables
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 283)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 678)
 
 ---
 
 ## TableStruct
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 304)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 739)
 
 ---
 
 ## Delete
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 353)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 844)
 
 ---
 
 ## Append
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 385)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 916)
 
 ---
 
 ## Update
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 432)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1003)
 
 ---
 
 ## GetServerInfo
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 471)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1082)
 
 ---
 
 ## New
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 503)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1116)
 
 ---
 
 ## Destroy
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 504)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1117)
 
 ---
 
 ## Close
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 505)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1118)
 
 ---
 
 ## Refresh
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 506)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1119)
 
 ---
 
 ## Fetch
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 507)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1120)
 
 ---
 
 ## Skip
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 508)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1121)
 
 ---
 
 ## Bof
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 510)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1123)
 
 ---
 
 ## Eof
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 511)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1124)
 
 ---
 
 ## RecNo
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 512)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1125)
 
 ---
 
 ## NetErr
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 514)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1127)
 
 ---
 
 ## Error
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 515)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1128)
 
 ---
 
 ## ErrorNo
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 516)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1129)
 
 ---
 
 ## FCount
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 518)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1131)
 
 ---
 
 ## Struct
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 519)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1132)
 
 ---
 
 ## FieldName
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 520)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1133)
 
 ---
 
 ## FieldPos
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 521)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1134)
 
 ---
 
 ## FieldLen
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 522)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1135)
 
 ---
 
 ## FieldDec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 523)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1136)
 
 ---
 
 ## FieldType
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 524)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1137)
 
 ---
 
 ## LastRec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 525)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1138)
 
 ---
 
 ## FieldGet
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 526)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1139)
 
 ---
 
 ## GetRow
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 527)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1140)
 
 ---
 
 ## GetBlankRow
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 528)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1141)
 
 ---
 
 ## Blank
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 529)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1142)
 
 ---
 
 ## GetKeyField
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 530)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1143)
 
 ---
 
 ## New
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 533)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1184)
 
 ---
 
 ## LastRec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 542)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1233)
 
 ---
 
 ## Refresh
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 551)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1282)
 
 ---
 
 ## Destroy
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 598)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1352)
 
 ---
 
 ## Fetch
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 610)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1405)
 
 ---
 
 ## Struct
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 629)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1464)
 
 ---
 
 ## FieldPos
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 638)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1513)
 
 ---
 
 ## FieldName
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 645)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1560)
 
 ---
 
 ## FieldType
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 652)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1607)
 
 ---
 
 ## FieldLen
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 659)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1654)
 
 ---
 
 ## FieldDec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 666)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1701)
 
 ---
 
 ## FieldGet
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 673)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1748)
 
 ---
 
 ## Getrow
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 727)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1842)
 
 ---
 
 ## GetBlankRow
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 738)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1893)
 
 ---
 
 ## GetKeyField
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 756)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1961)
 
 ---
 
 ## New
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 771)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1978)
 
 ---
 
 ## Changed
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 772)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1979)
 
 ---
 
 ## GetTables
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 773)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1980)
 
 ---
 
 ## FCount
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 774)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1981)
 
 ---
 
 ## FieldGet
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 775)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1982)
 
 ---
 
 ## FieldPut
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 776)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1983)
 
 ---
 
 ## FieldName
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 777)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1984)
 
 ---
 
 ## FieldPos
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 778)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1985)
 
 ---
 
 ## FieldLen
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 779)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1986)
 
 ---
 
 ## FieldDec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 780)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1987)
 
 ---
 
 ## FieldType
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 781)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1988)
 
 ---
 
 ## GetKeyField
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 782)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 1989)
 
 ---
 
 ## new
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 785)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2030)
 
 ---
 
 ## Changed
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 794)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2079)
 
 ---
 
 ## FieldGet
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 801)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2126)
 
 ---
 
 ## FieldPut
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 808)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2173)
 
 ---
 
 ## FieldName
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 816)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2221)
 
 ---
 
 ## FieldPos
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 823)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2268)
 
 ---
 
 ## FieldType
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 826)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2311)
 
 ---
 
 ## FieldLen
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 833)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2358)
 
 ---
 
 ## FieldDec
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 840)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2405)
 
 ---
 
 ## GetKeyField
 **Type:** `method`
-**Source:** `c:\develop\harbour\duckdb\DuckDBClass.prg` (line 847)
+**Source:** `c:\develop\harbour\duckdb\duckdbclass.prg` (line 2452)
 
 ---
 
 ## AREA_CONN
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 16)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 37)
 
 ### 💎 Value
 ```harbour
@@ -709,7 +709,7 @@
 
 ## AREA_TABLE
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 17)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 38)
 
 ### 💎 Value
 ```harbour
@@ -720,7 +720,7 @@
 
 ## AREA_PK
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 18)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 39)
 
 ### 💎 Value
 ```harbour
@@ -731,7 +731,7 @@
 
 ## AREA_CACHE
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 19)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 40)
 
 ### 💎 Value
 ```harbour
@@ -742,7 +742,7 @@
 
 ## AREA_RECNO
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 20)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 41)
 
 ### 💎 Value
 ```harbour
@@ -753,7 +753,7 @@
 
 ## AREA_ROWBUF
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 21)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 42)
 
 ### 💎 Value
 ```harbour
@@ -764,7 +764,7 @@
 
 ## AREA_APPEND
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 22)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 43)
 
 ### 💎 Value
 ```harbour
@@ -775,7 +775,7 @@
 
 ## AREA_EOF
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 23)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 44)
 
 ### 💎 Value
 ```harbour
@@ -786,7 +786,7 @@
 
 ## AREA_BOF
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 24)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 45)
 
 ### 💎 Value
 ```harbour
@@ -797,7 +797,7 @@
 
 ## AREA_FIELDS
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 25)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 46)
 
 ### 💎 Value
 ```harbour
@@ -808,7 +808,7 @@
 
 ## AREA_STRUCT
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 26)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 47)
 
 ### 💎 Value
 ```harbour
@@ -819,7 +819,7 @@
 
 ## AREA_QUERY
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 27)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 48)
 
 ### 💎 Value
 ```harbour
@@ -830,7 +830,7 @@
 
 ## AREA_FETCHED_EOF
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 28)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 49)
 
 ### 💎 Value
 ```harbour
@@ -841,7 +841,7 @@
 
 ## AREA_TYPES
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 29)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 50)
 
 ### 💎 Value
 ```harbour
@@ -852,7 +852,7 @@
 
 ## AREA_RECCOUNT
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 30)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 51)
 
 ### 💎 Value
 ```harbour
@@ -863,7 +863,7 @@
 
 ## AREA_LEN
 **Type:** `constant`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 31)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 52)
 
 ### 💎 Value
 ```harbour
@@ -874,43 +874,43 @@
 
 ## DBDUCKDBCONNECTION
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 41)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 87)
 
 ---
 
 ## DBDUCKDBGETHANDLE
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 135)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 249)
 
 ---
 
 ## DBDUCKDBCLEARCONNECTION
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 141)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 282)
 
 ---
 
 ## DBDUCKDBCOMMIT
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 152)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 320)
 
 ---
 
 ## DBDUCKDBROLLBACK
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 160)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 355)
 
 ---
 
 ## DUCKDB_SETPK
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 176)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 427)
 
 ---
 
 ## DUCKDBRDD_GETFUNCTABLE
 **Type:** `function`
-**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 760)
+**Source:** `c:\develop\harbour\duckdb\duckdbrdd.prg` (line 1851)
 
 ---
 
