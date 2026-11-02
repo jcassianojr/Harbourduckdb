@@ -26,8 +26,8 @@ PROCEDURE TesteClasse()
    
    ? ">>> TESTE 1: DuckDBClass (Via Comandos SQL) <<<"
    
-   // 1. Criacao do Banco (Em memoria) oDB := DuckDBClass():New( "" ) 
-   oDB := DuckDBClass():New( "teste1.db" ) 
+   // Usa banco em memoria para que o teste possa ser executado novamente.
+   oDB := DuckDBClass():New( "" )
    IF oDB:NetErr()
       ? "Erro ao conectar:", oDB:Error()
       RETURN
@@ -35,29 +35,53 @@ PROCEDURE TesteClasse()
    ? "- Conectado ao banco em memoria!"
    
    // 2. Criacao da Tabela (DDL)
-   oDB:Execute( "CREATE TABLE clientes (id INTEGER, nome VARCHAR, limite DOUBLE)" )
+   IF !oDB:Execute( "CREATE TABLE clientes (id INTEGER, nome VARCHAR, limite DOUBLE)" )
+      ? "Erro ao criar tabela:", oDB:Error()
+      oDB:Close()
+      RETURN
+   ENDIF
    ? "- Tabela 'clientes' criada."
    
    // 3. Insercao de Registros (DML)
-   oDB:Execute( "INSERT INTO clientes VALUES (1, 'Joao Silva', 1500.50)" )
-   oDB:Execute( "INSERT INTO clientes VALUES (2, 'Maria Souza', 3200.00)" )
+   IF !oDB:Execute( "INSERT INTO clientes VALUES (1, 'Joao Silva', 1500.50)" ) .OR. ;
+      !oDB:Execute( "INSERT INTO clientes VALUES (2, 'Maria Souza', 3200.00)" )
+      ? "Erro ao inserir registros:", oDB:Error()
+      oDB:Close()
+      RETURN
+   ENDIF
    ? "- 2 registros inseridos."
    
    // 4. Leitura (SELECT)
    ? "- Lendo registros:"
    oQry := oDB:Query( "SELECT * FROM clientes ORDER BY id" )
+   IF oQry:NetErr()
+      ? "Erro na consulta:", oQry:Error()
+      oQry:Destroy()
+      oDB:Close()
+      RETURN
+   ENDIF
    DO WHILE oQry:Fetch()
       ? "  ->", oQry:FieldGet( 1 ), oQry:FieldGet( 2 ), oQry:FieldGet( 3 )
    ENDDO
    oQry:Destroy()
    
    // 5. Delecao 
-   oDB:Execute( "DELETE FROM clientes WHERE id = 1" )
+   IF !oDB:Execute( "DELETE FROM clientes WHERE id = 1" )
+      ? "Erro ao excluir registro:", oDB:Error()
+      oDB:Close()
+      RETURN
+   ENDIF
    ? "- Registro ID 1 deletado."
    
    // 6. Validacao da Delecao
    ? "- Lendo registros apos delecao:"
    oQry := oDB:Query( "SELECT * FROM clientes ORDER BY id" )
+   IF oQry:NetErr()
+      ? "Erro na consulta:", oQry:Error()
+      oQry:Destroy()
+      oDB:Close()
+      RETURN
+   ENDIF
    DO WHILE oQry:Fetch()
       ? "  ->", oQry:FieldGet( 1 ), oQry:FieldGet( 2 ), oQry:FieldGet( 3 )
    ENDDO
@@ -75,8 +99,8 @@ PROCEDURE TesteRDD()
    
    ? ">>> TESTE 2: DuckDBRDD (Via Comandos Harbour/xBase) <<<"
    
-   // 1. Criacao do Banco (Em memoria)  nConn := DBDUCKDBCONNECTION( "" )
-   nConn := DBDUCKDBCONNECTION( "teste2.db" )
+   // Usa banco em memoria para que o teste possa ser executado novamente.
+   nConn := DBDUCKDBCONNECTION( "" )
    IF nConn == 0
       ? "Erro ao iniciar conexao no RDD."
       RETURN
@@ -92,9 +116,12 @@ PROCEDURE TesteRDD()
    
    // 2. Criacao da Tabela DBF Virtual (Sem abrir)
    dbCreate( "clientes_rdd", aStru, "DUCKDBRDD" )
-   
-   // Abre a tabela explicitamente com o Alias "CLI"
    dbUseArea( .T., "DUCKDBRDD", "clientes_rdd", "CLI", .F. )
+   IF Select( "CLI" ) == 0
+      ? "Erro ao abrir a tabela clientes_rdd."
+      DBDUCKDBCLEARCONNECTION( nConn )
+      RETURN
+   ENDIF
    
    // OBRIGATORIO: Informar a Chave Primaria para permitir UPDATE/DELETE no RDD
    DUCKDB_SETPK( "CLI", "ID" )
