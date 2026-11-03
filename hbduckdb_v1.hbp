@@ -4,7 +4,7 @@
 -olib/${hb_plat}/${hb_comp}/${hb_name}
 
 # --- ADICIONE ESTA LINHA APONTANDO PARA O SEU INCLUDE ---
--Ic:/harbour/hb3rd/duckdb-x64156/
+-Ic:/harbour/hb3rd/duckdb-x64V156/
 
 -w3 -es2
 
