@@ -1,0 +1,20 @@
+-hblib
+#-inc
+
+-olib/${hb_plat}/${hb_comp}/${hb_name}
+
+# --- ADICIONE ESTA LINHA APONTANDO PARA O SEU INCLUDE ---
+-Ic:/harbour/hb3rd/duckdb-x64156/
+
+-w3 -es2
+
+{!xhb}-hbx=hbduckdb_v1.hbx
+{!xhb}hbduckdb_v1.hbx
+
+xhb.hbc
+duckdb_v1.c
+duckdbrdd_v1.prg
+DuckDBClass_v1.prg
+
+
+$hb_pkg_install.hbm

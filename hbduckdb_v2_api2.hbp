@@ -1,0 +1,18 @@
+-hblib
+#-inc
+
+-olib/${hb_plat}/${hb_comp}/${hb_name}
+
+-Ic:/harbour/hb3rd/duckdb-x64/
+
+-w3 -es2
+
+{!xhb}-hbx=hbduckdb_v2_api2.hbx
+{!xhb}hbduckdb_v2_api2.hbx
+
+xhb.hbc
+duckdb_v2_api2.c
+duckdbrdd_v2_api2.prg
+duckdbclass_v2_api2.prg
+
+$hb_pkg_install.hbm

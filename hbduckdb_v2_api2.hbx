@@ -10,14 +10,14 @@
  *          Regenerate using hbmk2 '-hbx=' option.
  */
 
-#ifndef __HBEXTERN_CH__HBDUCKDB__
-#define __HBEXTERN_CH__HBDUCKDB__
+#ifndef __HBEXTERN_CH__HBDUCKDB_V2_API2__
+#define __HBEXTERN_CH__HBDUCKDB_V2_API2__
 
-#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__ANNOUNCE )
-   ANNOUNCE __HBEXTERN__HBDUCKDB__
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB_V2_API2__ANNOUNCE )
+   ANNOUNCE __HBEXTERN__HBDUCKDB_V2_API2__
 #endif
 
-#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__REQUEST )
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB_V2_API2__REQUEST )
    #command DYNAMIC <fncs,...> => EXTERNAL <fncs>
 #endif
 
@@ -46,7 +46,7 @@ DYNAMIC DUCKDB_SETPK
 DYNAMIC TDUCKDBQUERY
 DYNAMIC TDUCKDBROW
 
-#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB__REQUEST )
+#if defined( __HBEXTREQ__ ) .OR. defined( __HBEXTERN__HBDUCKDB_V2_API2__REQUEST )
    #uncommand DYNAMIC <fncs,...> => EXTERNAL <fncs>
 #endif
 

@@ -18,7 +18,7 @@
 *+
 
 /*
- * DuckDB RDBMS low-level interface code.
+ * DuckDB v2 C API binding. Build with duckdb_v2.c, not duckdb.c.
  * Adapted for Harbour Project (DuckDBClass - Espelho do Fb5class)
  */
 
@@ -697,7 +697,9 @@ METHOD LastRec() CLASS TDuckDBQuery
 LOCAL nTotal  := 0
 LOCAL oQCount := TDuckDBQuery():New(::db,"SELECT COUNT(*) FROM ("+::query+")",::dialect)
 IF oQCount != NIL
-   nTotal := NumericValue(oQCount:FieldGet(1))
+   IF !oQCount:NetErr() .AND. oQCount:Fetch()
+      nTotal := NumericValue(oQCount:FieldGet(1))
+   ENDIF
    oQCount:Destroy()
 ENDIF
 RETURN nTotal
